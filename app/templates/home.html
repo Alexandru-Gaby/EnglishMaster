@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}EnglishMaster - Învață Engleza Interactiv{% endblock %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="container hero-container">
+        {% if current_user.is_authenticated %}
+            <!-- Utilizator autentificat -->
+            <div class="welcome-card">
+                <h1>Bun venit, {{ current_user.first_name }}! 👋</h1>
+                <div class="user-stats">
+                    <div class="stat-card">
+                        <span class="stat-icon">⭐</span>
+                        <div>
+                            <div class="stat-number">{{ current_user.points }}</div>
+                            <div class="stat-label">Puncte</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-icon">🏆</span>
+                        <div>
+                            <div class="stat-number">0</div>
+                            <div class="stat-label">Badge-uri</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-icon">🔥</span>
+                        <div>
+                            <div class="stat-number">0</div>
+                            <div class="stat-label">Zile consecutive</div>
+                        </div>
+                    </div>
+                </div>
+                <a href="#" class="btn btn-large btn-primary">Continuă Lecțiile</a>
+            </div>
+        {% else %}
+            <!-- Vizitator neautentificat -->
+            <div class="hero-content">
+                <h1 class="hero-title">Învață Engleza Interactiv</h1>
+                <p class="hero-subtitle">
+                    Îmbunătățește-ți abilitățile de limba engleză prin lecții interactive,
+                    quiz-uri captivante și un sistem de gamification motivant!
+                </p>
+                <div class="hero-buttons">
+                    <a href="{{ url_for('main.register_page') }}" class="btn btn-large btn-primary">
+                        Începe Acum - Gratuit
+                    </a>
+                    <a href="{{ url_for('main.login_page') }}" class="btn btn-large btn-secondary">
+                        Am deja cont
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Secțiune Features -->
+<div class="features-section">
+    <div class="container">
+        <h2 class="section-title">De ce EnglishMaster?</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">📖</div>
+                <h3>Lecții Structurate</h3>
+                <p>Parcurge lecții organizate pe niveluri: Începător, Intermediar și Avansat</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🎮</div>
+                <h3>Gamification</h3>
+                <p>Câștigă puncte, badge-uri și urcă în clasamente globale</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">👨‍🏫</div>
+                <h3>Feedback Profesori</h3>
+                <p>Primește feedback personalizat de la profesori certificați</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3>Progres Vizibil</h3>
+                <p>Urmărește-ți evoluția și identifică zonele de îmbunătățit</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

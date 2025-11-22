@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Autentificare - EnglishMaster{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <div class="container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <h1>Bun venit înapoi!</h1>
+                <p>Autentifică-te pentru a continua învățarea</p>
+            </div>
+
+            <!-- Zona pentru mesaje de eroare/succes -->
+            <div id="message-container" class="message-container" style="display: none;"></div>
+
+            <form id="loginForm" class="auth-form">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        class="form-control"
+                        placeholder="exemplu@email.com"
+                        required
+                        autocomplete="email"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Parolă</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        class="form-control"
+                        placeholder="Introdu parola"
+                        required
+                        autocomplete="current-password"
+                    >
+                </div>
+
+                <div class="form-group form-remember">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="remember" name="remember">
+                        <span>Ține-mă minte</span>
+                    </label>
+                    <a href="#" class="forgot-password">Ai uitat parola?</a>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block" id="submitBtn">
+                    Autentificare
+                </button>
+            </form>
+
+            <div class="auth-footer">
+                <p>Nu ai cont? <a href="{{ url_for('main.register_page') }}">Înregistrează-te aici</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/login.js') }}"></script>
+{% endblock %}

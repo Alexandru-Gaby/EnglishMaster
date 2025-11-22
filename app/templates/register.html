@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Înregistrare - EnglishMaster{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <div class="container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <h1>Creează un cont nou</h1>
+                <p>Începe călătoria ta în învățarea limbii engleze</p>
+            </div>
+
+            <!-- Zona pentru mesaje de eroare/succes -->
+            <div id="message-container" class="message-container" style="display: none;"></div>
+
+            <form id="registerForm" class="auth-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="firstName">Prenume</label>
+                        <input 
+                            type="text" 
+                            id="firstName" 
+                            name="firstName" 
+                            class="form-control"
+                            placeholder="Ion"
+                            required
+                            minlength="2"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="lastName">Nume</label>
+                        <input 
+                            type="text" 
+                            id="lastName" 
+                            name="lastName" 
+                            class="form-control"
+                            placeholder="Popescu"
+                            required
+                            minlength="2"
+                        >
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        class="form-control"
+                        placeholder="exemplu@email.com"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Parolă</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        class="form-control"
+                        placeholder="Minim 6 caractere"
+                        required
+                        minlength="6"
+                    >
+                    <small class="form-help">Parola trebuie să conțină cel puțin 6 caractere</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmPassword">Confirmă Parola</label>
+                    <input 
+                        type="password" 
+                        id="confirmPassword" 
+                        name="confirmPassword" 
+                        class="form-control"
+                        placeholder="Reintroduceți parola"
+                        required
+                        minlength="6"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="role">Tip Cont</label>
+                    <select id="role" name="role" class="form-control">
+                        <option value="user">Student</option>
+                        <option value="professor">Profesor</option>
+                    </select>
+                    <small class="form-help">Alege "Profesor" dacă dorești să oferi lecții și feedback</small>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block" id="submitBtn">
+                    Creează Cont
+                </button>
+            </form>
+
+            <div class="auth-footer">
+                <p>Ai deja un cont? <a href="{{ url_for('main.login_page') }}">Autentifică-te aici</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/register.js') }}"></script>
+{% endblock %}

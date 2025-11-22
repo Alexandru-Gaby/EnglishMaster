@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}EnglishMaster{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Header cu Logo -->
+    <header class="header">
+        <div class="container">
+            <div class="logo">
+                <a href="{{ url_for('main.index') }}">
+                    <span class="logo-icon">📚</span>
+                    <span class="logo-text">EnglishMaster</span>
+                </a>
+            </div>
+            
+            <nav class="nav">
+                {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('main.dashboard') }}" class="nav-link">Dashboard</a>
+                    <a href="#" class="nav-link">Lecții</a>
+                    <a href="#" class="nav-link">Clasament</a>
+                    <a href="#" class="nav-link">Profil</a>
+                    <a href="{{ url_for('main.logout') }}" class="nav-link">Ieșire</a>
+                {% else %}
+                    <a href="{{ url_for('main.login_page') }}" class="nav-link">Autentificare</a>
+                    <a href="{{ url_for('main.register_page') }}" class="nav-link btn-primary">Înregistrare</a>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+
+    <!-- Conținut Principal -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 EnglishMaster - Echipa 8</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
