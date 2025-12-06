@@ -1,0 +1,514 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lesson.title }} - EnglishMaster{% endblock %}
+
+{% block content %}
+<div class="lesson-detail-page">
+    <div class="container">
+        <!-- Breadcrumb -->
+        <div class="breadcrumb">
+            <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
+            <span>→</span>
+            <a href="{{ url_for('main.lessons_page') }}">Lecții</a>
+            <span>→</span>
+            <span class="current">{{ lesson.title }}</span>
+        </div>
+
+        <!-- Header lecție -->
+        <div class="lesson-header">
+            <div class="lesson-header-left">
+                <span class="lesson-level-badge level-{{ lesson.level }}">
+                    {{ lesson.get_level_display() }}
+                </span>
+                <h1>{{ lesson.title }}</h1>
+                <p class="lesson-description-full">{{ lesson.description }}</p>
+                
+                <div class="lesson-meta-full">
+                    <div class="meta-item-full">
+                        <span class="meta-icon">👨‍🏫</span>
+                        <div>
+                            <strong>{{ lesson.professor.get_full_name() }}</strong>
+                            <small>{{ lesson.professor.specialization }}</small>
+                        </div>
+                    </div>
+                    <div class="meta-item-full">
+                        <span class="meta-icon">⏱️</span>
+                        <div>
+                            <strong>{{ lesson.duration_minutes }} minute</strong>
+                            <small>Durată estimată</small>
+                        </div>
+                    </div>
+                    <div class="meta-item-full">
+                        <span class="meta-icon">📊</span>
+                        <div>
+                            <strong>{{ lesson.get_difficulty_stars() }}</strong>
+                            <small>Dificultate</small>
+                        </div>
+                    </div>
+                    {% if lesson.category %}
+                    <div class="meta-item-full">
+                        <span class="meta-icon">📁</span>
+                        <div>
+                            <strong>{{ lesson.category }}</strong>
+                            <small>Categorie</small>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="lesson-header-right">
+                <div class="lesson-stats-card">
+                    <h3>Statistici</h3>
+                    <div class="stat-row">
+                        <span>👁️ Vizualizări:</span>
+                        <strong>{{ lesson.views }}</strong>
+                    </div>
+                    <div class="stat-row">
+                        <span>✅ Finalizări:</span>
+                        <strong>{{ lesson.completions }}</strong>
+                    </div>
+                    <div class="stat-row">
+                        <span>📈 Rată finalizare:</span>
+                        <strong>{{ lesson.calculate_completion_rate() }}%</strong>
+                    </div>
+                    {% if lesson.rating > 0 %}
+                    <div class="stat-row">
+                        <span>⭐ Rating:</span>
+                        <strong>{{ "%.1f"|format(lesson.rating) }}/5.0</strong>
+                    </div>
+                    <div class="stat-row">
+                        <span>💬 Recenzii:</span>
+                        <strong>{{ lesson.total_ratings }}</strong>
+                    </div>
+                    {% else %}
+                    <div class="stat-row">
+                        <span>⭐ Rating:</span>
+                        <strong>Fără rating</strong>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Conținut lecție -->
+        <div class="lesson-content-section">
+            <div class="lesson-main-content">
+                <div class="content-card">
+                    <h2>📖 Conținutul Lecției</h2>
+                    <div class="lesson-content-text">
+                        {{ lesson.content|safe }}
+                    </div>
+                </div>
+
+                <!-- Acțiuni -->
+                <div class="lesson-actions">
+                    <button class="btn btn-success btn-large" onclick="markAsComplete()">
+                        ✅ Marchează ca finalizat
+                    </button>
+                    <button class="btn btn-secondary" onclick="saveLesson()">
+                        🔖 Salvează lecția
+                    </button>
+                    <a href="{{ url_for('main.lessons_page') }}" class="btn btn-outline">
+                        ← Înapoi la lecții
+                    </a>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="lesson-sidebar">
+                <!-- Progress Card -->
+                <div class="sidebar-card">
+                    <h3>🎯 Progresul tău</h3>
+                    <div class="progress-info">
+                        <p>Citești această lecție pentru prima dată!</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <small>0% completat</small>
+                    </div>
+                </div>
+
+                <!-- Info Card -->
+                <div class="sidebar-card">
+                    <h3>ℹ️ Informații</h3>
+                    <div class="info-list">
+                        <div class="info-item">
+                            <strong>Publicat:</strong>
+                            <span>{{ lesson.created_at.strftime('%d %B %Y') }}</span>
+                        </div>
+                        <div class="info-item">
+                            <strong>Actualizat:</strong>
+                            <span>{{ lesson.updated_at.strftime('%d %B %Y') }}</span>
+                        </div>
+                        <div class="info-item">
+                            <strong>Status:</strong>
+                            <span class="status-badge">{{ lesson.status }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Related Lessons -->
+                <div class="sidebar-card">
+                    <h3>📚 Lecții similare</h3>
+                    <p class="text-muted">În curând...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.lesson-detail-page {
+    padding: 40px 0;
+}
+
+/* Breadcrumb */
+.breadcrumb {
+    margin-bottom: 30px;
+    font-size: 14px;
+    color: var(--text-light);
+}
+
+.breadcrumb a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.breadcrumb a:hover {
+    text-decoration: underline;
+}
+
+.breadcrumb .current {
+    color: var(--text-dark);
+    font-weight: 600;
+}
+
+/* Header */
+.lesson-header {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 30px;
+    margin-bottom: 40px;
+}
+
+.lesson-header-left {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.lesson-level-badge {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 15px;
+}
+
+.lesson-level-badge.level-beginner {
+    background: #D4EDDA;
+    color: #155724;
+}
+
+.lesson-level-badge.level-intermediate {
+    background: #FFF3CD;
+    color: #856404;
+}
+
+.lesson-level-badge.level-advanced {
+    background: #F8D7DA;
+    color: #721C24;
+}
+
+.lesson-header h1 {
+    font-size: 32px;
+    margin-bottom: 15px;
+    line-height: 1.3;
+}
+
+.lesson-description-full {
+    font-size: 16px;
+    color: var(--text-light);
+    line-height: 1.6;
+    margin-bottom: 25px;
+}
+
+.lesson-meta-full {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 20px;
+}
+
+.meta-item-full {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.meta-icon {
+    font-size: 28px;
+}
+
+.meta-item-full div {
+    display: flex;
+    flex-direction: column;
+}
+
+.meta-item-full strong {
+    font-size: 14px;
+    color: var(--text-dark);
+}
+
+.meta-item-full small {
+    font-size: 12px;
+    color: var(--text-light);
+}
+
+/* Stats Card */
+.lesson-header-right {
+    display: flex;
+    flex-direction: column;
+}
+
+.lesson-stats-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.lesson-stats-card h3 {
+    margin-bottom: 20px;
+    font-size: 18px;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 14px;
+}
+
+.stat-row:last-child {
+    border-bottom: none;
+}
+
+.stat-row span {
+    color: var(--text-light);
+}
+
+.stat-row strong {
+    color: var(--text-dark);
+}
+
+/* Content Section */
+.lesson-content-section {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 30px;
+}
+
+.lesson-main-content {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.content-card {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.content-card h2 {
+    font-size: 24px;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid var(--primary-color);
+}
+
+.lesson-content-text {
+    font-size: 16px;
+    line-height: 1.8;
+    color: var(--text-dark);
+}
+
+.lesson-content-text p {
+    margin-bottom: 15px;
+}
+
+.lesson-content-text h3 {
+    font-size: 20px;
+    margin: 25px 0 15px 0;
+    color: var(--primary-color);
+}
+
+.lesson-content-text ul, .lesson-content-text ol {
+    margin: 15px 0;
+    padding-left: 25px;
+}
+
+.lesson-content-text li {
+    margin-bottom: 10px;
+}
+
+/* Actions */
+.lesson-actions {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.btn-large {
+    padding: 15px 30px;
+    font-size: 16px;
+}
+
+.btn-outline {
+    background: white;
+    color: var(--primary-color);
+    border: 2px solid var(--primary-color);
+}
+
+.btn-outline:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+/* Sidebar */
+.lesson-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.sidebar-card {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.sidebar-card h3 {
+    font-size: 16px;
+    margin-bottom: 15px;
+}
+
+.progress-info {
+    text-align: center;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 10px;
+    background: var(--bg-light);
+    border-radius: 5px;
+    overflow: hidden;
+    margin: 15px 0 10px 0;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    transition: width 0.3s;
+}
+
+.info-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+}
+
+.info-item strong {
+    color: var(--text-dark);
+}
+
+.info-item span {
+    color: var(--text-light);
+}
+
+.status-badge {
+    padding: 4px 12px;
+    background: #D4EDDA;
+    color: #155724;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.text-muted {
+    color: var(--text-light);
+    font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 968px) {
+    .lesson-header,
+    .lesson-content-section {
+        grid-template-columns: 1fr;
+    }
+    
+    .lesson-meta-full {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .lesson-meta-full {
+        grid-template-columns: 1fr;
+    }
+    
+    .lesson-actions {
+        flex-direction: column;
+    }
+    
+    .btn {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function markAsComplete() {
+    alert('Funcționalitate în dezvoltare! Lecția va fi marcată ca finalizată și vei primi puncte.');
+    // TODO: Implementare în Sprint 3 cu quiz-uri
+}
+
+function saveLesson() {
+    alert('Lecție salvată! Vei găsi lecțiile salvate în profilul tău.');
+    // TODO: Implementare salvare lecții
+}
+
+// Simulare progres de citire
+window.addEventListener('scroll', function() {
+    const content = document.querySelector('.lesson-content-text');
+    if (!content) return;
+    
+    const contentHeight = content.offsetHeight;
+    const scrolled = window.scrollY;
+    const windowHeight = window.innerHeight;
+    const progress = Math.min((scrolled / (contentHeight - windowHeight)) * 100, 100);
+    
+    const progressBar = document.querySelector('.progress-fill');
+    if (progressBar) {
+        progressBar.style.width = progress + '%';
+    }
+});
+</script>
+{% endblock %}

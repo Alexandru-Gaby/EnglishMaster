@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
 from flask_login import login_user, logout_user, login_required, current_user
-from app.models import db, User, Meeting
+from app.models import db, User, Meeting, Lesson
 from datetime import datetime
 import re
 
@@ -62,6 +62,36 @@ def meetings_page():
     
     return render_template('meetings.html', meetings=meetings)
 
+@main.route('/lessons')
+@login_required
+def lessons_page():
+    """Pagina cu toate lecțiile"""
+    # Obține filtrul de nivel din query params
+    level_filter = request.args.get('level', 'all')
+    
+    # Query de bază - doar lecții publicate
+    query = Lesson.query.filter_by(status='published')
+    
+    # Aplică filtrul de nivel
+    if level_filter != 'all':
+        query = query.filter_by(level=level_filter)
+    
+    # Ordonează după dată (cele mai noi primele)
+    lessons = query.order_by(Lesson.created_at.desc()).all()
+    
+    return render_template('lessons.html', lessons=lessons, current_level=level_filter)
+
+@main.route('/lessons/<int:lesson_id>')
+@login_required
+def lesson_detail(lesson_id):
+    """Pagina de detalii pentru o lecție"""
+    lesson = Lesson.query.get_or_404(lesson_id)
+    
+    # Incrementează numărul de vizualizări
+    lesson.increment_views()
+    
+    return render_template('lesson_detail.html', lesson=lesson)
+
 @main.route('/logout')
 @login_required
 def logout():
@@ -101,7 +131,6 @@ def api_register():
         if existing_user:
             return jsonify({'success': False, 'error': 'Acest email este deja înregistrat!'}), 400
         
-        # Creeaza utilizatorul nou
         new_user = User(
             first_name=first_name,
             last_name=last_name,
@@ -116,7 +145,6 @@ def api_register():
             new_user.specialization = data.get('specialization', 'Gramatică și Vocabular')
             new_user.is_available = True
         
-        # Pentru DEMO: Oferim 150 puncte automat la înregistrare
         new_user.points = 150
         
         db.session.add(new_user)
@@ -199,7 +227,7 @@ def api_create_meeting():
         if not current_user.can_request_feedback():
             return jsonify({
                 'success': False, 
-                'error': f'Nu ai suficiente puncte! Ai nevoie de 100 puncte. Ai doar {current_user.points} puncte.'
+                'error': f'Nu ai suficiente puncte! Ai nevoie de 500 puncte. Ai doar {current_user.points} puncte.'
             }), 400
         
         # Verifică dacă profesorul există
@@ -216,7 +244,6 @@ def api_create_meeting():
         except ValueError:
             return jsonify({'success': False, 'error': 'Format de dată invalid!'}), 400
         
-        # Verifică că data este în viitor
         if meeting_date <= datetime.now():
             return jsonify({'success': False, 'error': 'Data întâlnirii trebuie să fie în viitor!'}), 400
         
@@ -227,7 +254,7 @@ def api_create_meeting():
             meeting_date=meeting_date,
             student_message=student_message,
             status='pending',
-            points_cost=100
+            points_cost=500
         )
         
         # Scade punctele
@@ -360,3 +387,111 @@ def api_cancel_meeting(meeting_id):
 def api_current_user():
     """Returnează informații despre utilizatorul curent"""
     return jsonify({'success': True, 'user': current_user.to_dict()}), 200
+
+# ==================== API ENDPOINTS - LECȚII ====================
+
+@main.route('/api/lessons', methods=['GET'])
+@login_required
+def api_get_lessons():
+    """Obține lista de lecții cu opțiune de filtrare"""
+    try:
+        level = request.args.get('level', 'all')
+        category = request.args.get('category', 'all')
+        
+        # Query de bază
+        query = Lesson.query.filter_by(status='published')
+        
+        # Filtrare după nivel
+        if level != 'all':
+            query = query.filter_by(level=level)
+        
+        # Filtrare după categorie
+        if category != 'all':
+            query = query.filter_by(category=category)
+        
+        # Ordonare
+        lessons = query.order_by(Lesson.created_at.desc()).all()
+        
+        return jsonify({
+            'success': True,
+            'lessons': [lesson.to_dict() for lesson in lessons],
+            'count': len(lessons)
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare la obținerea lecțiilor: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+@main.route('/api/lessons/<int:lesson_id>', methods=['GET'])
+@login_required
+def api_get_lesson(lesson_id):
+    """Obține detaliile unei lecții"""
+    try:
+        lesson = Lesson.query.get(lesson_id)
+        
+        if not lesson:
+            return jsonify({'success': False, 'error': 'Lecție inexistentă!'}), 404
+        
+        if lesson.status != 'published':
+            return jsonify({'success': False, 'error': 'Această lecție nu este disponibilă.'}), 403
+        
+        return jsonify({
+            'success': True,
+            'lesson': lesson.to_dict()
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare la obținerea lecției: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+@main.route('/api/lessons/create', methods=['POST'])
+@login_required
+def api_create_lesson():
+    """Creează o lecție nouă (doar pentru profesori)"""
+    try:
+        # Verifică că utilizatorul este profesor
+        if current_user.role != 'professor':
+            return jsonify({'success': False, 'error': 'Doar profesorii pot crea lecții!'}), 403
+        
+        data = request.get_json()
+        
+        # Validare
+        title = data.get('title', '').strip()
+        description = data.get('description', '').strip()
+        content = data.get('content', '').strip()
+        level = data.get('level', 'beginner')
+        category = data.get('category', '').strip()
+        duration_minutes = data.get('duration_minutes', 30)
+        difficulty = data.get('difficulty', 3)
+        
+        if not all([title, description, content]):
+            return jsonify({'success': False, 'error': 'Titlu, descriere și conținut sunt obligatorii!'}), 400
+        
+        if level not in ['beginner', 'intermediate', 'advanced']:
+            return jsonify({'success': False, 'error': 'Nivel invalid!'}), 400
+        
+        new_lesson = Lesson(
+            title=title,
+            description=description,
+            content=content,
+            level=level,
+            category=category if category else None,
+            professor_id=current_user.id,
+            duration_minutes=duration_minutes,
+            difficulty=difficulty,
+            status='published'
+        )
+        
+        db.session.add(new_lesson)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Lecție creată cu succes!',
+            'lesson': new_lesson.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare la crearea lecției: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare la crearea lecției.'}), 500

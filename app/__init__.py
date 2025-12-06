@@ -3,7 +3,6 @@ from flask_login import LoginManager
 from app.config import Config
 from app.models import db, bcrypt, User
 
-# Inițializare Login Manager
 login_manager = LoginManager()
 
 @login_manager.user_loader
@@ -19,7 +18,7 @@ def create_app():
     db.init_app(app)
     bcrypt.init_app(app)
     login_manager.init_app(app)
-    login_manager.login_view = 'main.login'
+    login_manager.login_view = 'main.login_page'
     login_manager.login_message = 'Te rugăm să te autentifici pentru a accesa această pagină.'
     
     # Creează tabelele în baza de date

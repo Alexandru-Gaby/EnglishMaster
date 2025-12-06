@@ -11,7 +11,7 @@ class User(db.Model, UserMixin):
     
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(20), nullable=False)
-    last_name = db.Column(db.String(13), nullable=False)
+    last_name = db.Column(db.String(20), nullable=False)
     email = db.Column(db.String(255), unique = True, nullable=False, index=True)
     password = db.Column(db.String(255), nullable=False)
     role = db.Column(db.Enum('user','professor', 'admin'), default='user', nullable=False)
@@ -20,7 +20,7 @@ class User(db.Model, UserMixin):
     
     #Campuri pt profesori
     bio = db.Column(db.Text, nullable=True)
-    specialization = db.Column(db.String(20),nullable=True)
+    specialization = db.Column(db.String(500),nullable=True)
     rating = db.Column(db.Float, default=0.0)
     total_reviews = db.Column(db.Integer, default=0)
     is_available = db.Column(db.Boolean, default=True)
@@ -48,13 +48,13 @@ class User(db.Model, UserMixin):
         return f"{self.first_name} {self.last_name}"
     
     def can_request_feedback(self):
-        """Verifică dacă utilizatorul poate solicita feedback (100+ puncte)"""
-        return self.points >= 100
+        """Verifică dacă utilizatorul poate solicita feedback (500+ puncte)"""
+        return self.points >= 500
     
     def deduct_points_for_feedback(self):
-        """Scade 100 puncte pentru feedback"""
-        if self.points >= 100:
-            self.points -= 100
+        """Scade 500 puncte pentru feedback"""
+        if self.points >= 500:
+            self.points -= 500
             return True
         return False
     
@@ -83,6 +83,94 @@ class User(db.Model, UserMixin):
         
         return data
 
+class Lesson(db.Model):
+    __tablename__ = 'lessons'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    level = db.Column(db.Enum('beginner', 'intermediate', 'advanced'), nullable=False, index=True)
+    category = db.Column(db.String(100),nullable=True) #Grammar, Vocabulary, Reading
+    # Profesorul care a creat lectia
+    professor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False) 
+    # Durata estimata (minute)
+    duration_minutes = db.Column(db.Integer, default=30)  
+    # Dificultatea (1-5)
+    difficulty = db.Column(db.Integer, default=3)
+    # Rating si statistici
+    rating = db.Column(db.Float, default=0.0)
+    total_ratings = db.Column(db.Integer, default=0)
+    views = db.Column(db.Integer, default=0)
+    completions = db.Column(db.Integer, default=0)
+    
+    # Status: draft, published, archived
+    status = db.Column(db.Enum('draft','published','archived'), default='published', nullable=False)
+    # URL imagine pentru preview
+    image_url = db.Column(db.String(500), nullable=True)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relatie cu profesorul
+    professor = db.relationship('User', backref='lessons')
+    
+    def __repr__(self):
+        return f'<Lesson {self.title}>'
+    
+    def get_level_display(self):
+        """Returneaza nivelul in format vizibil"""
+        levels = {
+            'beginner': 'Începător',
+            'intermediate': 'Intermediar',
+            'advanced': 'Avansat'
+        }
+        return levels.get(self.level, self.level)
+    
+    def get_difficulty_stars(self):
+        """Returneaza dificultatea ca nr. de stele"""
+        return '⭐' * self.difficulty
+    
+    def increment_views(self):
+        self.views += 1
+        db.session.commit()
+    
+    def calculate_completion_rate(self):
+        """Calculeaza rata de finalizare"""
+        if self.views == 0:
+            return 0
+        return round((self.completions / self.views) * 100, 1)
+    
+    def to_dict(self):
+        """Convertire obiect la dictionar(pt JSON)"""
+        return{
+         'id': self.id,
+            'title': self.title,
+            'description': self.description,
+            'content': self.content,
+            'level': self.level,
+            'level_display': self.get_level_display(),
+            'category': self.category,
+            'duration_minutes': self.duration_minutes,
+            'difficulty': self.difficulty,
+            'difficulty_stars': self.get_difficulty_stars(),
+            'rating': self.rating,
+            'total_ratings': self.total_ratings,
+            'views': self.views,
+            'completions': self.completions,
+            'completion_rate': self.calculate_completion_rate(),
+            'status': self.status,
+            'image_url': self.image_url,
+            'professor': {
+                'id': self.professor.id,
+                'name': self.professor.get_full_name(),
+                'specialization': self.professor.specialization
+            } if self.professor else None,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+     
 
 class Meeting(db.Model):
     __tablename__ = 'meetings'
@@ -97,21 +185,18 @@ class Meeting(db.Model):
     meeting_date = db.Column(db.DateTime, nullable=False)
     duration_minutes = db.Column(db.Integer, default=60)
     
-    # Status: pending, confirmed, rejected, completed, cancelled
     status = db.Column(db.Enum('pending', 'confirmed', 'rejected', 'completed', 'cancelled'), 
                       default='pending', nullable=False)
     
-    # Mesaj de la student
     student_message = db.Column(db.Text, nullable=True)
     
-    # Răspuns de la profesor
     professor_response = db.Column(db.Text, nullable=True)
     
     # Link pentru meeting online (opțional)
-    # meeting_link = db.Column(db.String(500), nullable=True)
+    meeting_link = db.Column(db.String(500), nullable=True)
     
     # Puncte consumate pentru această întâlnire
-    points_cost = db.Column(db.Integer, default=100)
+    points_cost = db.Column(db.Integer, default=500)
     
     created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))

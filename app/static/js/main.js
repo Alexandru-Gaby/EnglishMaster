@@ -93,12 +93,10 @@ function trackUserActivity() {
         // 30 minute de inactivitate
         if (inactiveTime > 30 * 60 * 1000) {
             console.log('Utilizator inactiv de 30 minute');
-            // Aici poți adăuga logică pentru logout automat
         }
     }, 5 * 60 * 1000);
 }
 
-// Inițializează toate funcționalitățile când DOM-ul e gata
 document.addEventListener('DOMContentLoaded', function() {
     console.log('✅ EnglishMaster - JavaScript loaded');
     
@@ -108,13 +106,12 @@ document.addEventListener('DOMContentLoaded', function() {
     initSmoothScroll();
     trackUserActivity();
     
-    // Log pentru debug (elimină în producție)
     if (window.location.hostname === 'localhost') {
         console.log('🔧 Development mode active');
     }
 });
 
-// Export funcții utilitare (pentru a fi folosite în alte fișiere)
+// Export funcții utilitare
 window.EnglishMaster = {
     showNotification: function(message, type = 'info') {
         const notification = document.createElement('div');

@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+
+{% block title %}Lecții - EnglishMaster{% endblock %}
+
+{% block content %}
+<div class="lessons-page">
+    <div class="container">
+
+        <div class="page-header">
+            <h1>📖 Lecții de Limba Engleză</h1>
+            <p>Descoperă conținut educațional structurat pe niveluri</p>
+        </div>
+
+        <div class="filters-section">
+            <h3>Filtrează după nivel:</h3>
+            <div class="filter-buttons">
+                <a href="{{ url_for('main.lessons_page', level='all') }}" 
+                   class="filter-btn {% if current_level == 'all' %}active{% endif %}">
+                    🌐 Toate
+                </a>
+                <a href="{{ url_for('main.lessons_page', level='beginner') }}" 
+                   class="filter-btn {% if current_level == 'beginner' %}active{% endif %}">
+                    🌱 Începător
+                </a>
+                <a href="{{ url_for('main.lessons_page', level='intermediate') }}" 
+                   class="filter-btn {% if current_level == 'intermediate' %}active{% endif %}">
+                    🌿 Intermediar
+                </a>
+                <a href="{{ url_for('main.lessons_page', level='advanced') }}" 
+                   class="filter-btn {% if current_level == 'advanced' %}active{% endif %}">
+                    🌳 Avansat
+                </a>
+            </div>
+        </div>
+
+        <div class="lessons-stats">
+            <div class="stat-item">
+                <span class="stat-number">{{ lessons|length }}</span>
+                <span class="stat-label">Lecții disponibile</span>
+            </div>
+        </div>
+
+        <!-- Lista de lecții -->
+        {% if lessons %}
+        <div class="lessons-grid">
+            {% for lesson in lessons %}
+            <div class="lesson-card">
+                <div class="lesson-image">
+                    {% if lesson.image_url %}
+                        <img src="{{ lesson.image_url }}" alt="{{ lesson.title }}">
+                    {% else %}
+                        <div class="lesson-placeholder">
+                            <span class="placeholder-icon">📚</span>
+                        </div>
+                    {% endif %}
+                    <span class="lesson-level level-{{ lesson.level }}">
+                        {{ lesson.get_level_display() }}
+                    </span>
+                </div>
+                
+                <div class="lesson-content">
+                    <h3 class="lesson-title">{{ lesson.title }}</h3>
+                    <p class="lesson-description">{{ lesson.description[:120] }}{% if lesson.description|length > 120 %}...{% endif %}</p>
+                    
+                    <div class="lesson-meta">
+                        <span class="meta-item">
+                            <strong>👨‍🏫</strong> {{ lesson.professor.get_full_name() }}
+                        </span>
+                        <span class="meta-item">
+                            <strong>⏱️</strong> {{ lesson.duration_minutes }} min
+                        </span>
+                        <span class="meta-item">
+                            <strong>📊</strong> {{ lesson.get_difficulty_stars() }}
+                        </span>
+                    </div>
+
+                    <div class="lesson-stats">
+                        <span>👁️ {{ lesson.views }} vizualizări</span>
+                        {% if lesson.rating > 0 %}
+                        <span>⭐ {{ "%.1f"|format(lesson.rating) }} ({{ lesson.total_ratings }})</span>
+                        {% else %}
+                        <span>⭐ Fără rating</span>
+                        {% endif %}
+                    </div>
+
+                    {% if lesson.category %}
+                    <span class="lesson-category">{{ lesson.category }}</span>
+                    {% endif %}
+                </div>
+
+                <div class="lesson-footer">
+                    <a href="{{ url_for('main.lesson_detail', lesson_id=lesson.id) }}" class="btn btn-primary btn-block">
+                        Începe Lecția →
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <span class="empty-icon">🔍</span>
+            <h3>Nicio lecție disponibilă</h3>
+            <p>
+                {% if current_level != 'all' %}
+                    Nu există lecții pentru nivelul selectat. Încearcă alt filtru!
+                {% else %}
+                    Momentan nu există lecții disponibile. Revino mai târziu!
+                {% endif %}
+            </p>
+            {% if current_level != 'all' %}
+            <a href="{{ url_for('main.lessons_page', level='all') }}" class="btn btn-primary">
+                Vezi toate lecțiile
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.lessons-page {
+    padding: 40px 0;
+}
+
+.page-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.page-header h1 {
+    font-size: 36px;
+    margin-bottom: 10px;
+}
+
+.page-header p {
+    color: var(--text-light);
+    font-size: 18px;
+}
+
+.filters-section {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    margin-bottom: 30px;
+}
+
+.filters-section h3 {
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.filter-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.filter-btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    background: var(--bg-light);
+    color: var(--text-dark);
+    font-weight: 600;
+    transition: all 0.3s;
+    border: 2px solid transparent;
+}
+
+.filter-btn:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.filter-btn.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-dark);
+}
+
+/* Stats */
+.lessons-stats {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.stat-item {
+    background: white;
+    padding: 20px 40px;
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    text-align: center;
+}
+
+.stat-number {
+    display: block;
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.stat-label {
+    display: block;
+    color: var(--text-light);
+    font-size: 14px;
+    margin-top: 5px;
+}
+
+.lessons-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 30px;
+}
+
+.lesson-card {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    transition: all 0.3s;
+    display: flex;
+    flex-direction: column;
+}
+
+.lesson-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-lg);
+}
+
+.lesson-image {
+    position: relative;
+    width: 100%;
+    height: 180px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.lesson-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.lesson-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.placeholder-icon {
+    font-size: 64px;
+    opacity: 0.3;
+}
+
+.lesson-level {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 700;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.lesson-level.level-beginner {
+    color: #2ECC71;
+}
+
+.lesson-level.level-intermediate {
+    color: #F39C12;
+}
+
+.lesson-level.level-advanced {
+    color: #E74C3C;
+}
+
+.lesson-content {
+    padding: 20px;
+    flex: 1;
+}
+
+.lesson-title {
+    font-size: 20px;
+    margin-bottom: 10px;
+    color: var(--text-dark);
+    line-height: 1.3;
+}
+
+.lesson-description {
+    color: var(--text-light);
+    font-size: 15px;
+    line-height: 1.6;
+    margin-bottom: 15px;
+}
+
+.lesson-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 15px;
+    font-size: 13px;
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-light);
+}
+
+.lesson-stats {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 15px;
+    color: var(--text-light);
+    margin-bottom: 15px;
+}
+
+.lesson-category {
+    display: inline-block;
+    padding: 4px 12px;
+    background: var(--bg-light);
+    color: var(--primary-color);
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.lesson-footer {
+    padding: 0 20px 20px 20px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 80px 20px;
+}
+
+.empty-icon {
+    font-size: 80px;
+    display: block;
+    margin-bottom: 20px;
+}
+
+.empty-state h3 {
+    font-size: 24px;
+    margin-bottom: 10px;
+}
+
+.empty-state p {
+    color: var(--text-light);
+    margin-bottom: 20px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .lessons-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .filter-buttons {
+        flex-direction: column;
+    }
+    
+    .filter-btn {
+        text-align: center;
+    }
+}
+</style>
+{% endblock %}
