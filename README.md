@@ -12,16 +12,16 @@ Aplicație web educațională pentru învățarea limbii engleze prin gamificati
 ✅ Validare client-side și server-side
 
 ## Pagina Home
-![Pagina Home](imagini/Pagina%20Home.png)
+![Pagina Home](Imagini/Pagina%20Home.png)
 
 ## Pagina Register
-![Pagina Register](imagini/Pagina%20Register.png)
+![Pagina Register](Imagini/Pagina%20Register.png)
 
 ## Pagina Login
-![Pagina Login](imagini/Pagina%20Login.png)
+![Pagina Login](Imagini/Pagina%20Login.png)
 
 ## Pagina Dashboard
-![Pagina Dashboard](imagini/Pagina%20Dashboard.png)
+![Pagina Dashboard](Imagini/Pagina%20Dashboard.png)
 
 ### 🛠️ Tehnologii Folosite
 
