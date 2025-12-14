@@ -1,8 +1,9 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
 from flask_login import login_user, logout_user, login_required, current_user
-from app.models import db, User, Meeting, Lesson
+from app.models import db, User, Meeting, Lesson, Quiz, Question, QuizSubmission, Badge, UserBadge, UserProgress
 from datetime import datetime
 import re
+import json
 
 main = Blueprint('main', __name__)
 
@@ -44,6 +45,12 @@ def dashboard():
     
     return render_template('dashboard.html', user=current_user, meetings=meetings)
 
+@main.route('/profile')
+@login_required
+def profile():
+    """Pagina de profil a utilizatorului"""
+    return render_template('profile.html', user=current_user)
+
 @main.route('/professors')
 @login_required
 def professors_page():
@@ -81,16 +88,117 @@ def lessons_page():
     
     return render_template('lessons.html', lessons=lessons, current_level=level_filter)
 
+
+@main.route('/my-lessons')
+@login_required
+def my_lessons():
+    """Pagină pentru profesori: listează lecțiile create de profesor și permite crearea unora noi"""
+    if current_user.role != 'professor':
+        return redirect(url_for('main.dashboard'))
+
+    lessons = Lesson.query.filter_by(professor_id=current_user.id).order_by(Lesson.created_at.desc()).all()
+    return render_template('my_lessons.html', lessons=lessons)
+
+
 @main.route('/lessons/<int:lesson_id>')
 @login_required
 def lesson_detail(lesson_id):
     """Pagina de detalii pentru o lecție"""
     lesson = Lesson.query.get_or_404(lesson_id)
     
-    # Incrementează numărul de vizualizări
+    # Incrementează nr de vizualizări
     lesson.increment_views()
     
-    return render_template('lesson_detail.html', lesson=lesson)
+    # Obține sau creează progresul utilizatorului pentru această lecție
+    progress = UserProgress.query.filter_by(user_id=current_user.id, lesson_id=lesson_id).first()
+    if not progress:
+        progress = UserProgress(
+            user_id=current_user.id,
+            lesson_id=lesson_id,
+            status='in_progress',
+            started_at=datetime.utcnow()
+        )
+        db.session.add(progress)
+        db.session.commit()
+    else:
+        # Actualizează ultima accesare
+        progress.last_accessed = datetime.utcnow()
+        if progress.status == 'not_started':
+            progress.status = 'in_progress'
+            progress.started_at = datetime.utcnow()
+        db.session.commit()
+    
+    # Găsește quiz-ul pentru lecția curentă
+    quiz = Quiz.query.filter_by(lesson_id=lesson_id).first()
+    
+    # Găsește încercările anterioare
+    submissions = QuizSubmission.query.filter_by(
+        user_id=current_user.id,
+        lesson_id=lesson_id
+    ).order_by(QuizSubmission.submitted_at.desc()).all()
+    
+    return render_template('lesson_detail.html', 
+                         lesson=lesson, 
+                         progress=progress,
+                         quiz=quiz,
+                         submissions=submissions)
+
+@main.route('/quiz/<int:quiz_id>')
+@login_required
+def quiz_page(quiz_id):
+    """Pagina pentru a lua un quiz"""
+    quiz = Quiz.query.get_or_404(quiz_id)
+    lesson = quiz.lesson
+    
+    # Verifică numărul de încercări
+    attempts = QuizSubmission.query.filter_by(
+        user_id=current_user.id,
+        quiz_id=quiz_id
+    ).count()
+    
+    if attempts >= quiz.max_attempts:
+        return redirect(url_for('main.lesson_detail', 
+                              lesson_id=lesson.id,
+                              error='max_attempts'))
+    
+    # Obține întrebările
+    questions = Question.query.filter_by(quiz_id=quiz_id).order_by(Question.order).all()
+    
+    return render_template('quiz.html', 
+                         quiz=quiz, 
+                         lesson=lesson,
+                         questions=questions,
+                         attempt_number=attempts + 1)
+
+@main.route('/quiz/<int:quiz_id>/results/<int:submission_id>')
+@login_required
+def quiz_results(quiz_id, submission_id):
+    """Pagina cu rezultatele quiz-ului"""
+    submission = QuizSubmission.query.get_or_404(submission_id)
+    
+    # Verificăm că submission-ul aparține utilizatorului curent
+    if submission.user_id != current_user.id:
+        return redirect(url_for('main.dashboard'))
+    
+    quiz = submission.quiz
+    lesson = submission.lesson
+    
+    # Obține întrebările și răspunsurile
+    questions = Question.query.filter_by(quiz_id=quiz_id).order_by(Question.order).all()
+    user_answers = json.loads(submission.answers)
+    
+    # Găsește badge-urile câștigate (dacă există)
+    new_badges = []
+    if submission.passed:
+        new_badges = check_and_award_badges(current_user)
+    
+    return render_template('quiz_results.html',
+                         submission=submission,
+                         quiz=quiz,
+                         lesson=lesson,
+                         questions=questions,
+                         user_answers=user_answers,
+                         new_badges=new_badges)
 
 @main.route('/logout')
 @login_required
@@ -126,11 +234,11 @@ def api_register():
         if len(password) < 6:
             return jsonify({'success': False, 'error': 'Parola trebuie să aibă cel puțin 6 caractere!'}), 400
         
-        # Verificăm dacă emailul există deja
+        # Verifică dacă emailul există deja
         existing_user = User.query.filter_by(email=email).first()
         if existing_user:
             return jsonify({'success': False, 'error': 'Acest email este deja înregistrat!'}), 400
-        
+               
         new_user = User(
             first_name=first_name,
             last_name=last_name,
@@ -362,19 +470,29 @@ def api_cancel_meeting(meeting_id):
         if not meeting.can_cancel():
             return jsonify({'success': False, 'error': 'Această întâlnire nu poate fi anulată!'}), 400
         
+        # păstrează statusul anterior pentru a decide dacă returnăm punctele
+        previous_status = meeting.status
         meeting.status = 'cancelled'
-        
-        # Returnează punctele dacă e anulată de student sau profesor
-        if meeting.status == 'pending' or meeting.status == 'confirmed':
+
+        remaining_points = None
+        # Returnează punctele doar dacă întâlnirea era pending sau confirmed
+        if previous_status in ['pending', 'confirmed']:
             student = User.query.get(meeting.student_id)
-            student.points += meeting.points_cost
-        
+            if student:
+                student.points += meeting.points_cost
+                remaining_points = student.points
+
         db.session.commit()
-        
+
+        message = 'Întâlnire anulată cu succes.'
+        if remaining_points is not None:
+            message += ' Punctele au fost returnate.'
+
         return jsonify({
             'success': True,
-            'message': 'Întâlnire anulată cu succes! Punctele au fost returnate.',
-            'meeting': meeting.to_dict()
+            'message': message,
+            'meeting': meeting.to_dict(),
+            'remaining_points': remaining_points
         }), 200
         
     except Exception as e:
@@ -470,6 +588,7 @@ def api_create_lesson():
         if level not in ['beginner', 'intermediate', 'advanced']:
             return jsonify({'success': False, 'error': 'Nivel invalid!'}), 400
         
+        # Creează lecția
         new_lesson = Lesson(
             title=title,
             description=description,
@@ -495,3 +614,202 @@ def api_create_lesson():
         db.session.rollback()
         print(f"Eroare la crearea lecției: {str(e)}")
         return jsonify({'success': False, 'error': 'A apărut o eroare la crearea lecției.'}), 500
+
+# ==================== API ENDPOINTS - QUIZ ====================
+
+@main.route('/api/quiz/<int:quiz_id>/submit', methods=['POST'])
+@login_required
+def api_submit_quiz(quiz_id):
+    """Trimite răspunsurile la quiz și calculează scorul"""
+    try:
+        quiz = Quiz.query.get(quiz_id)
+        if not quiz:
+            return jsonify({'success': False, 'error': 'Quiz inexistent!'}), 404
+        
+        # Verifică numărul de încercări
+        attempts = QuizSubmission.query.filter_by(
+            user_id=current_user.id,
+            quiz_id=quiz_id
+        ).count()
+        
+        if attempts >= quiz.max_attempts:
+            return jsonify({'success': False, 'error': 'Ai atins numărul maxim de încercări!'}), 400
+        
+        data = request.get_json()
+        answers = data.get('answers', {})  # Format: {"1": "A", "2": "B", ...}
+        time_taken = data.get('time_taken_seconds', 0)
+        
+        # Obține întrebările
+        questions = Question.query.filter_by(quiz_id=quiz_id).all()
+        
+        # Calculează scorul
+        total_points = sum(q.points for q in questions)
+        earned_points = 0
+        
+        for question in questions:
+            user_answer = answers.get(str(question.id))
+            if user_answer and user_answer.upper() == question.correct_answer.upper():
+                earned_points += question.points
+        
+        # Scor procentual
+        score_percentage = (earned_points / total_points * 100) if total_points > 0 else 0
+        passed = score_percentage >= quiz.passing_score
+        
+        # Puncte recompensă
+        points_reward = quiz.points_reward if passed else int(quiz.points_reward * 0.3)
+        
+        # Creează submission
+        submission = QuizSubmission(
+            user_id=current_user.id,
+            quiz_id=quiz_id,
+            lesson_id=quiz.lesson_id,
+            answers=json.dumps(answers),
+            score=round(score_percentage, 2),
+            points_earned=points_reward,
+            passed=passed,
+            time_taken_seconds=time_taken,
+            attempt_number=attempts + 1
+        )
+        
+        db.session.add(submission)
+        
+        # Adaugă puncte utilizatorului
+        current_user.points += points_reward
+        
+        # Actualizează progresul
+        progress = UserProgress.query.filter_by(
+            user_id=current_user.id,
+            lesson_id=quiz.lesson_id
+        ).first()
+        
+        if progress:
+            progress.quiz_attempts += 1
+            progress.best_score = max(progress.best_score, score_percentage)
+            
+            if passed and progress.status != 'completed':
+                progress.status = 'completed'
+                progress.completed_at = datetime.utcnow()
+                progress.progress_percentage = 100
+                
+                # Incrementează completions la lecție
+                lesson = Lesson.query.get(quiz.lesson_id)
+                if lesson:
+                    lesson.completions += 1
+        
+        db.session.commit()
+        
+        # Verifică badge-uri
+        new_badges = check_and_award_badges(current_user)
+        
+        return jsonify({
+            'success': True,
+            'submission_id': submission.id,
+            'score': score_percentage,
+            'points_earned': points_reward,
+            'passed': passed,
+            'total_points': current_user.points,
+            'new_badges': [b.to_dict() for b in new_badges],
+            'message': 'Felicitări! Ai promovat!' if passed else 'Mai încearcă o dată!'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare la submit quiz: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare la evaluarea quiz-ului.'}), 500
+
+@main.route('/api/progress', methods=['GET'])
+@login_required
+def api_get_progress():
+    """Obține progresul utilizatorului"""
+    try:
+        progress_list = UserProgress.query.filter_by(user_id=current_user.id).all()
+        
+        # Statistici generale
+        total_lessons = Lesson.query.filter_by(status='published').count()
+        completed_lessons = len([p for p in progress_list if p.status == 'completed'])
+        in_progress_lessons = len([p for p in progress_list if p.status == 'in_progress'])
+        
+        # Badge-uri
+        user_badges = UserBadge.query.filter_by(user_id=current_user.id).all()
+        badges = [ub.badge.to_dict() for ub in user_badges]
+        
+        # Submission-uri recente
+        recent_submissions = QuizSubmission.query.filter_by(user_id=current_user.id)\
+            .order_by(QuizSubmission.submitted_at.desc())\
+            .limit(5).all()
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'total_points': current_user.points,
+                'total_lessons': total_lessons,
+                'completed_lessons': completed_lessons,
+                'in_progress_lessons': in_progress_lessons,
+                'completion_rate': round((completed_lessons / total_lessons * 100), 1) if total_lessons > 0 else 0,
+                'total_badges': len(badges)
+            },
+            'progress': [p.to_dict() for p in progress_list],
+            'badges': badges,
+            'recent_quizzes': [
+                {
+                    'id': s.id,
+                    'quiz_id': s.quiz_id,
+                    'lesson_id': s.lesson_id,
+                    'lesson_title': s.lesson.title if s.lesson else None,
+                    'score': s.score,
+                    'passed': s.passed,
+                    'submitted_at': s.submitted_at.isoformat()
+                } for s in recent_submissions
+            ]
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare la obținerea progresului: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+# Funcție helper pentru verificare și acordare badge-uri
+def check_and_award_badges(user):
+    """Verifică și acordă badge-uri utilizatorului"""
+    new_badges = []
+    
+    # Obține toate badge-urile
+    all_badges = Badge.query.all()
+    
+    # Obține badge-urile deja câștigate
+    earned_badge_ids = [ub.badge_id for ub in UserBadge.query.filter_by(user_id=user.id).all()]
+    
+    for badge in all_badges:
+        # Dacă utilizatorul deja are acest badge, skip
+        if badge.id in earned_badge_ids:
+            continue
+        
+        # Verifică criteriile
+        earned = False
+        
+        if badge.criteria_type == 'points':
+            earned = user.points >= badge.criteria_value
+        
+        elif badge.criteria_type == 'lessons_completed':
+            completed = UserProgress.query.filter_by(
+                user_id=user.id,
+                status='completed'
+            ).count()
+            earned = completed >= badge.criteria_value
+        
+        elif badge.criteria_type == 'perfect_score':
+            perfect_scores = QuizSubmission.query.filter_by(
+                user_id=user.id,
+                score=100.0
+            ).count()
+            earned = perfect_scores >= badge.criteria_value
+        
+        # Acordă badge-ul
+        if earned:
+            user_badge = UserBadge(user_id=user.id, badge_id=badge.id)
+            db.session.add(user_badge)
+            new_badges.append(badge)
+    
+    if new_badges:
+        db.session.commit()
+    
+    return new_badges

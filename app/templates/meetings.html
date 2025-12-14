@@ -1,0 +1,409 @@
+{% extends "base.html" %}
+
+{% block title %}Întâlnirile Mele - EnglishMaster{% endblock %}
+
+{% block content %}
+<div class="meetings-page">
+    <div class="container">
+        <h1>Întâlnirile Mele</h1>
+
+        <div id="message-container" class="message-container" style="display: none;"></div>
+
+        {% if meetings %}
+        <div class="meetings-container">
+            {% for meeting in meetings %}
+            <div class="meeting-card-full status-{{ meeting.status }}">
+                <div class="meeting-main">
+                    <div class="meeting-left">
+                        {% if current_user.role == 'professor' %}
+                            <h3>👤 {{ meeting.student.get_full_name() }}</h3>
+                            <p class="meeting-contact">{{ meeting.student.email }}</p>
+                        {% else %}
+                            <h3>👨‍🏫 {{ meeting.professor.get_full_name() }}</h3>
+                            <p class="meeting-contact">{{ meeting.professor.specialization }}</p>
+                        {% endif %}
+                        
+                        <div class="meeting-details-grid">
+                            <div class="detail-item">
+                                <strong>📅 Data:</strong>
+                                {{ meeting.meeting_date.strftime('%d %B %Y') }}
+                            </div>
+                            <div class="detail-item">
+                                <strong>🕐 Ora:</strong>
+                                {{ meeting.meeting_date.strftime('%H:%M') }}
+                            </div>
+                            <div class="detail-item">
+                                <strong>⏱️ Durată:</strong>
+                                {{ meeting.duration_minutes }} minute
+                            </div>
+                            <div class="detail-item">
+                                <strong>💰 Cost:</strong>
+                                {{ meeting.points_cost }} puncte
+                            </div>
+                        </div>
+
+                        {% if meeting.student_message %}
+                        <div class="message-box">
+                            <strong>💬 Mesaj de la student:</strong>
+                            <p>{{ meeting.student_message }}</p>
+                        </div>
+                        {% endif %}
+
+                        {% if meeting.professor_response %}
+                        <div class="message-box response">
+                            <strong>✉️ Răspuns de la profesor:</strong>
+                            <p>{{ meeting.professor_response }}</p>
+                        </div>
+                        {% endif %}
+
+                        {% if meeting.meeting_link and meeting.status == 'confirmed' %}
+                        <div class="meeting-link-box">
+                            <strong>🔗 Link întâlnire:</strong>
+                            <a href="{{ meeting.meeting_link }}" target="_blank">{{ meeting.meeting_link }}</a>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="meeting-right">
+                        <span class="status-badge-large status-{{ meeting.status }}">
+                            {{ meeting.status|upper }}
+                        </span>
+
+                        {% if current_user.role == 'professor' and meeting.status == 'pending' %}
+                        <div class="action-buttons">
+                            <button class="btn btn-success btn-sm btn-respond" data-meeting-id="{{ meeting.id }}" data-action="confirm">
+                                ✅ Confirmă
+                            </button>
+                            <button class="btn btn-danger btn-sm btn-respond" data-meeting-id="{{ meeting.id }}" data-action="reject">
+                                ❌ Respinge
+                            </button>
+                        </div>
+                        {% endif %}
+
+                        {% if meeting.can_cancel() %}
+                        <button class="btn btn-secondary btn-sm btn-cancel" data-meeting-id="{{ meeting.id }}">
+                            🚫 Anulează
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <span class="empty-icon">📅</span>
+            <h3>Nicio întâlnire programată</h3>
+            {% if current_user.role == 'user' %}
+            <p>Acumulează puncte și programează o întâlnire cu un profesor!</p>
+            <a href="{{ url_for('main.professors_page') }}" class="btn btn-primary">
+                Vezi Profesorii
+            </a>
+            {% else %}
+            <p>Vei primi notificări când studenții vor programa întâlniri cu tine.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal pentru răspuns profesor -->
+<div id="responseModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modalTitle">Răspuns Întâlnire</h2>
+            <button class="modal-close" onclick="closeResponseModal()">&times;</button>
+        </div>
+        <form id="responseForm">
+            <input type="hidden" id="meeting_id_response">
+            <input type="hidden" id="action_response">
+            
+            <div class="form-group">
+                <label for="response_message">Mesaj pentru student</label>
+                <textarea 
+                    id="response_message" 
+                    class="form-control" 
+                    rows="4"
+                    placeholder="Scrie un mesaj..."
+                ></textarea>
+            </div>
+
+            <div class="form-group" id="linkGroup" style="display: none;">
+                <label for="meeting_link">Link pentru întâlnire (Google Meet, Zoom, etc.)</label>
+                <input 
+                    type="url" 
+                    id="meeting_link" 
+                    class="form-control"
+                    placeholder="https://meet.google.com/..."
+                >
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">
+                Trimite Răspuns
+            </button>
+        </form>
+    </div>
+</div>
+<div id="modalBackdrop" class="modal-backdrop" style="display: none;" onclick="closeResponseModal()"></div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.meetings-page {
+    padding: 40px 0;
+}
+
+.meetings-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.meeting-card-full {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: var(--shadow);
+    border-left: 5px solid #ccc;
+}
+
+.meeting-card-full.status-pending { border-left-color: #F39C12; }
+.meeting-card-full.status-confirmed { border-left-color: #2ECC71; }
+.meeting-card-full.status-rejected { border-left-color: #E74C3C; }
+.meeting-card-full.status-completed { border-left-color: #3498DB; }
+.meeting-card-full.status-cancelled { border-left-color: #95A5A6; }
+
+.meeting-main {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.meeting-left {
+    flex: 1;
+}
+
+.meeting-right {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-end;
+}
+
+.meeting-contact {
+    color: var(--text-light);
+    margin-bottom: 20px;
+}
+
+.meeting-details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.detail-item {
+    font-size: 14px;
+}
+
+.message-box {
+    background: var(--bg-light);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+.message-box.response {
+    background: #E8F5E9;
+}
+
+.message-box p {
+    margin: 5px 0 0 0;
+}
+
+.meeting-link-box {
+    background: #E3F2FD;
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+.meeting-link-box a {
+    color: var(--primary-color);
+    word-break: break-all;
+}
+
+.status-badge-large {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.status-badge-large.status-pending { background: #FFF3CD; color: #856404; }
+.status-badge-large.status-confirmed { background: #D4EDDA; color: #155724; }
+.status-badge-large.status-rejected { background: #F8D7DA; color: #721C24; }
+.status-badge-large.status-completed { background: #D1ECF1; color: #0C5460; }
+.status-badge-large.status-cancelled { background: #E2E3E5; color: #383D41; }
+
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.btn-sm {
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+.btn-success {
+    background: #2ECC71;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #27AE60;
+}
+
+.btn-danger {
+    background: #E74C3C;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #C0392B;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 80px 20px;
+}
+
+.empty-icon {
+    font-size: 80px;
+    display: block;
+    margin-bottom: 20px;
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1001;
+    max-width: 500px;
+    width: 90%;
+}
+
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 22px;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 28px;
+    cursor: pointer;
+    color: var(--text-light);
+}
+
+.modal-close:hover {
+    color: var(--text-dark);
+}
+
+.modal-content form {
+    padding: 25px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .meeting-main {
+        flex-direction: column;
+    }
+    
+    .meeting-right {
+        align-items: stretch;
+    }
+    
+    .action-buttons {
+        flex-direction: row;
+    }
+    
+    .meeting-details-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/meetings.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.btn-respond').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var id = this.dataset.meetingId;
+            var action = this.dataset.action;
+            if (typeof respondMeeting === 'function') {
+                respondMeeting(id, action);
+                return;
+            }
+            // Fallback: open the response modal
+            var idInput = document.getElementById('meeting_id_response');
+            var actionInput = document.getElementById('action_response');
+            var linkGroup = document.getElementById('linkGroup');
+            var modal = document.getElementById('responseModal');
+            var backdrop = document.getElementById('modalBackdrop');
+            var title = document.getElementById('modalTitle');
+            if (idInput) idInput.value = id;
+            if (actionInput) actionInput.value = action;
+            if (linkGroup) linkGroup.style.display = action === 'confirm' ? '' : 'none';
+            if (title) title.textContent = action === 'confirm' ? 'Confirmă Întâlnire' : 'Respinge Întâlnire';
+            if (modal) modal.style.display = '';
+            if (backdrop) backdrop.style.display = '';
+        });
+    });
+
+    document.querySelectorAll('.btn-cancel').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var id = this.dataset.meetingId;
+            if (typeof cancelMeeting === 'function') {
+                cancelMeeting(id);
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

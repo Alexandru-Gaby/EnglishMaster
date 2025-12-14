@@ -237,3 +237,261 @@ class Meeting(db.Model):
     def is_upcoming(self):
         """Verifică dacă întâlnirea este viitoare"""
         return self.meeting_date > datetime.now(timezone.utc)
+
+class Quiz(db.Model):
+    __tablename__ = 'quizzes'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Lecția asociată
+    lesson_id = db.Column(db.Integer, db.ForeignKey('lessons.id'), nullable=False)
+    
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    
+    passing_score = db.Column(db.Integer, default=70)  # Scor minim pentru trecere (%)
+    time_limit_minutes = db.Column(db.Integer, nullable=True)  # Timp limită (opțional)
+    max_attempts = db.Column(db.Integer, default=3)  # Număr maxim de încercări
+    
+    # Puncte acordate
+    points_reward = db.Column(db.Integer, default=50)  # Puncte pentru trecere
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relații
+    lesson = db.relationship('Lesson', backref='quizzes')
+    questions = db.relationship('Question', backref='quiz', lazy=True, cascade='all, delete-orphan')
+    submissions = db.relationship('QuizSubmission', backref='quiz', lazy=True)
+    
+    def __repr__(self):
+        return f'<Quiz {self.title}>'
+    
+    def to_dict(self, include_questions=False):
+        """Convertește la dicționar"""
+        data = {
+            'id': self.id,
+            'lesson_id': self.lesson_id,
+            'title': self.title,
+            'description': self.description,
+            'passing_score': self.passing_score,
+            'time_limit_minutes': self.time_limit_minutes,
+            'max_attempts': self.max_attempts,
+            'points_reward': self.points_reward,
+            'total_questions': len(self.questions)
+        }
+        
+        if include_questions:
+            data['questions'] = [q.to_dict() for q in self.questions]
+        
+        return data
+
+
+class Question(db.Model):
+    __tablename__ = 'questions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    quiz_id = db.Column(db.Integer, db.ForeignKey('quizzes.id'), nullable=False)
+    
+    # Conținut
+    question_text = db.Column(db.Text, nullable=False)
+    question_type = db.Column(db.Enum('multiple_choice', 'true_false'), default='multiple_choice', nullable=False)
+    
+    # Răspunsuri (pentru multiple choice)
+    option_a = db.Column(db.String(500), nullable=True)
+    option_b = db.Column(db.String(500), nullable=True)
+    option_c = db.Column(db.String(500), nullable=True)
+    option_d = db.Column(db.String(500), nullable=True)
+    
+    correct_answer = db.Column(db.String(1), nullable=False)  # 'A', 'B', 'C', 'D', sau 'T', 'F'
+    
+    explanation = db.Column(db.Text, nullable=True)
+    
+    # Puncte pt această întrebare
+    points = db.Column(db.Integer, default=10)
+    
+    # Ordinea în quiz
+    order = db.Column(db.Integer, default=0)
+    
+    def __repr__(self):
+        return f'<Question {self.id}>'
+    
+    def to_dict(self, include_correct_answer=False):
+        """Convertește la dicționar"""
+        data = {
+            'id': self.id,
+            'question_text': self.question_text,
+            'question_type': self.question_type,
+            'points': self.points,
+            'order': self.order
+        }
+        
+        if self.question_type == 'multiple_choice':
+            data['options'] = {
+                'A': self.option_a,
+                'B': self.option_b,
+                'C': self.option_c,
+                'D': self.option_d
+            }
+        
+        if include_correct_answer:
+            data['correct_answer'] = self.correct_answer
+            data['explanation'] = self.explanation
+        
+        return data
+
+
+class QuizSubmission(db.Model):
+    __tablename__ = 'quiz_submissions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Relații
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    quiz_id = db.Column(db.Integer, db.ForeignKey('quizzes.id'), nullable=False)
+    lesson_id = db.Column(db.Integer, db.ForeignKey('lessons.id'), nullable=False)
+    
+    # Răspunsuri in format JSON {"1": "A", "2": "B", ...}
+    answers = db.Column(db.Text, nullable=False)
+    
+    # Rezultate
+    score = db.Column(db.Float, nullable=False)  # Scor procentual (0-100)
+    points_earned = db.Column(db.Integer, default=0)  # Puncte câștigate
+    
+    # Status
+    passed = db.Column(db.Boolean, default=False)
+    
+    # Timp
+    time_taken_seconds = db.Column(db.Integer, nullable=True)
+    
+    # Încercare
+    attempt_number = db.Column(db.Integer, default=1)
+    
+    submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relații
+    user = db.relationship('User', backref='quiz_submissions')
+    lesson = db.relationship('Lesson', backref='quiz_submissions')
+    
+    def __repr__(self):
+        return f'<QuizSubmission user={self.user_id} quiz={self.quiz_id} score={self.score}>'
+    
+    def to_dict(self):
+        """Convertește la dicționar"""
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'quiz_id': self.quiz_id,
+            'lesson_id': self.lesson_id,
+            'score': self.score,
+            'points_earned': self.points_earned,
+            'passed': self.passed,
+            'time_taken_seconds': self.time_taken_seconds,
+            'attempt_number': self.attempt_number,
+            'submitted_at': self.submitted_at.isoformat()
+        }
+
+
+class Badge(db.Model):
+    __tablename__ = 'badges'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Info badge
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    description = db.Column(db.Text, nullable=False)
+    icon = db.Column(db.String(10), default='🏆')  # Emoji sau URL imagine
+    
+    # Criteriu de obținere
+    criteria_type = db.Column(db.Enum('points', 'lessons_completed', 'streak', 'perfect_score', 'speed'), nullable=False)
+    criteria_value = db.Column(db.Integer, nullable=False)
+    
+    # Nivel
+    level = db.Column(db.Enum('bronze', 'silver', 'gold', 'platinum'), default='bronze')
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<Badge {self.name}>'
+    
+    def to_dict(self):
+        """Convertește la dicționar"""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'icon': self.icon,
+            'criteria_type': self.criteria_type,
+            'criteria_value': self.criteria_value,
+            'level': self.level
+        }
+
+
+class UserBadge(db.Model):
+    __tablename__ = 'user_badges'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    badge_id = db.Column(db.Integer, db.ForeignKey('badges.id'), nullable=False)
+    
+    earned_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relații
+    user = db.relationship('User', backref='user_badges')
+    badge = db.relationship('Badge', backref='user_badges')
+    
+    def __repr__(self):
+        return f'<UserBadge user={self.user_id} badge={self.badge_id}>'
+
+
+class UserProgress(db.Model):
+    __tablename__ = 'user_progress'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    lesson_id = db.Column(db.Integer, db.ForeignKey('lessons.id'), nullable=False)
+    
+    # Status
+    status = db.Column(db.Enum('not_started', 'in_progress', 'completed'), default='not_started')
+    
+    # Progres (0-100%)
+    progress_percentage = db.Column(db.Integer, default=0)
+    
+    # Încercări quiz
+    quiz_attempts = db.Column(db.Integer, default=0)
+    best_score = db.Column(db.Float, default=0.0)
+    
+    # Timp petrecut (secunde)
+    time_spent_seconds = db.Column(db.Integer, default=0)
+    
+    # Timestamps
+    started_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    last_accessed = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relații
+    user = db.relationship('User', backref='progress')
+    lesson = db.relationship('Lesson', backref='user_progress')
+    
+    # Index unic pentru user + lesson
+    __table_args__ = (db.UniqueConstraint('user_id', 'lesson_id', name='unique_user_lesson'),)
+    
+    def __repr__(self):
+        return f'<UserProgress user={self.user_id} lesson={self.lesson_id}>'
+    
+    def to_dict(self):
+        """Convertește la dicționar"""
+        return {
+            'lesson_id': self.lesson_id,
+            'lesson_title': self.lesson.title if self.lesson else None,
+            'status': self.status,
+            'progress_percentage': self.progress_percentage,
+            'quiz_attempts': self.quiz_attempts,
+            'best_score': self.best_score,
+            'time_spent_seconds': self.time_spent_seconds,
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'last_accessed': self.last_accessed.isoformat()
+        }

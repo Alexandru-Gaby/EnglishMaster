@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Lecțiile Mele - EnglishMaster{% endblock %}
+
+{% block content %}
+<div class="container" style="padding:40px 0;">
+    <div style="display:flex;gap:24px;align-items:flex-start;">
+        <div style="flex:1">
+            <h2>Lecțiile Mele</h2>
+            <div id="myLessonsList">
+                {% if lessons %}
+                    {% for lesson in lessons %}
+                    <div class="lesson-card" style="background:white;padding:16px;border-radius:8px;margin-bottom:12px;box-shadow:var(--shadow);">
+                        <h3>{{ lesson.title }}</h3>
+                        <p style="color:var(--text-light);">{{ lesson.description }}</p>
+                        <div style="font-size:13px;color:#666;margin-top:8px;">
+                            <span>Nivel: {{ lesson.get_level_display() }}</span> •
+                            <span>{{ lesson.duration_minutes }} min</span>
+                            <a href="{{ url_for('main.lesson_detail', lesson_id=lesson.id) }}" style="float:right;">Vezi</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">Nu ai încă lecții create.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div style="width:420px;">
+            <div style="background:white;padding:20px;border-radius:12px;box-shadow:var(--shadow);">
+                <h3>Creează Lecție Nouă</h3>
+                <form id="createLessonForm">
+                    <div style="margin-bottom:10px;">
+                        <label>Titlu</label>
+                        <input type="text" id="lessonTitle" class="form-control" required />
+                    </div>
+                    <div style="margin-bottom:10px;">
+                        <label>Descriere scurtă</label>
+                        <input type="text" id="lessonDescription" class="form-control" required />
+                    </div>
+                    <div style="margin-bottom:10px;">
+                        <label>Nivel</label>
+                        <select id="lessonLevel" class="form-control">
+                            <option value="beginner">Începător</option>
+                            <option value="intermediate">Intermediar</option>
+                            <option value="advanced">Avansat</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom:10px;">
+                        <label>Conținut (HTML)</label>
+                        <textarea id="lessonContent" class="form-control" rows="6" required></textarea>
+                    </div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+                        <button type="submit" class="btn btn-primary">Crează</button>
+                    </div>
+                </form>
+                <div id="createMessage" style="margin-top:12px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('createLessonForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    const title = document.getElementById('lessonTitle').value.trim();
+    const description = document.getElementById('lessonDescription').value.trim();
+    const level = document.getElementById('lessonLevel').value;
+    const content = document.getElementById('lessonContent').value.trim();
+
+    const msg = document.getElementById('createMessage');
+    msg.textContent = '';
+
+    try {
+        const res = await fetch('/api/lessons/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, description, content, level })
+        });
+        const data = await res.json();
+        if (data.success) {
+            msg.textContent = data.message;
+            msg.style.color = 'green';
+            // adăuga o nouă lecție la listă
+            const list = document.getElementById('myLessonsList');
+            const div = document.createElement('div');
+            div.className = 'lesson-card';
+            div.style = 'background:white;padding:16px;border-radius:8px;margin-bottom:12px;box-shadow:var(--shadow);';
+            div.innerHTML = `<h3>${data.lesson.title}</h3><p style="color:var(--text-light);">${data.lesson.description}</p><div style="font-size:13px;color:#666;margin-top:8px;"><span>Nivel: ${data.lesson.level}</span> • <span>${data.lesson.duration_minutes} min</span><a href="/lessons/${data.lesson.id}" style="float:right;">Vezi</a></div>`;
+            list.insertBefore(div, list.firstChild);
+            // formular resetare
+            document.getElementById('createLessonForm').reset();
+        } else {
+            msg.textContent = data.error || 'Eroare';
+            msg.style.color = 'red';
+        }
+    } catch(err){
+        console.error(err);
+        msg.textContent = 'Eroare la server';
+        msg.style.color = 'red';
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,514 @@
+{% extends "base.html" %}
+
+{% block title %}{{ quiz.title }} - EnglishMaster{% endblock %}
+
+{% block content %}
+<div class="quiz-page">
+    <div class="container">
+        <!-- Header -->
+        <div class="quiz-header">
+            <div class="quiz-info">
+                <h1>📝 {{ quiz.title }}</h1>
+                <p>{{ lesson.title }}</p>
+                <div class="quiz-meta">
+                    <span>📊 {{ questions|length }} întrebări</span>
+                    <span>⭐ {{ quiz.points_reward }} puncte</span>
+                    {% if quiz.time_limit_minutes %}
+                    <span>⏱️ {{ quiz.time_limit_minutes }} minute</span>
+                    {% endif %}
+                    <span>🎯 Minim {{ quiz.passing_score }}% pentru trecere</span>
+                </div>
+            </div>
+            
+            <div class="quiz-attempt">
+                <span class="attempt-badge">Încercarea {{ attempt_number }} / {{ quiz.max_attempts }}</span>
+            </div>
+        </div>
+
+        <!-- Timer (dacă există limită de timp) -->
+        {% if quiz.time_limit_minutes %}
+        <div class="timer-container">
+            <div class="timer" id="timer">
+                <span class="timer-icon">⏱️</span>
+                <span id="timer-display">{{ quiz.time_limit_minutes }}:00</span>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Progress Bar -->
+        <div class="quiz-progress-container">
+            <div class="quiz-progress-bar">
+                <div class="quiz-progress-fill" id="progressBar"></div>
+            </div>
+            <div class="quiz-progress-text">
+                <span id="currentQuestion">1</span> / {{ questions|length }}
+            </div>
+        </div>
+
+        <!-- Formular Quiz -->
+        <form id="quizForm">
+            {% for question in questions %}
+             <div class="question-card {% if not loop.first %}hidden{% endif %}" data-question="{{ loop.index }}">
+    <div class="question-number">Întrebarea {{ loop.index }}</div>
+    <h3 class="question-text">{{ question.question_text }}</h3>
+    
+    <div class="answers-container">
+        {% if question.question_type == 'multiple_choice' %}
+            {% for letter, option in [('A', question.option_a), ('B', question.option_b), ('C', question.option_c), ('D', question.option_d)] %}
+                {% if option %}
+                <label class="answer-option">
+                    <input type="radio" name="question_{{ question.id }}" value="{{ letter }}" required>
+                    <div class="answer-content">
+                        <span class="answer-letter">{{ letter }}</span>
+                        <span class="answer-text">{{ option }}</span>
+                    </div>
+                </label>
+                {% endif %}
+            {% endfor %}
+        {% elif question.question_type == 'true_false' %}
+            <label class="answer-option">
+                <input type="radio" name="question_{{ question.id }}" value="T" required>
+                <div class="answer-content">
+                    <span class="answer-letter">✓</span>
+                    <span class="answer-text">Adevărat (True)</span>
+                </div>
+            </label>
+            <label class="answer-option">
+                <input type="radio" name="question_{{ question.id }}" value="F" required>
+                <div class="answer-content">
+                    <span class="answer-letter">✗</span>
+                    <span class="answer-text">Fals (False)</span>
+                </div>
+            </label>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+
+
+            <!-- Navigation Buttons -->
+            <div class="quiz-navigation">
+                <button type="button" class="btn btn-secondary" id="prevBtn" style="display: none;">
+                    ← Anterior
+                </button>
+                <button type="button" class="btn btn-primary" id="nextBtn">
+                    Următoarea →
+                </button>
+                <button type="submit" class="btn btn-success" id="submitBtn" style="display: none;">
+                    ✅ Trimite Răspunsurile
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.quiz-page {
+    padding: 40px 0;
+    background: var(--bg-light);
+    min-height: calc(100vh - 150px);
+}
+
+.quiz-header {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.quiz-info h1 {
+    margin-bottom: 10px;
+}
+
+.quiz-info p {
+    color: var(--text-light);
+    margin-bottom: 15px;
+}
+
+.quiz-meta {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    font-size: 14px;
+    color: var(--text-light);
+}
+
+.attempt-badge {
+    padding: 8px 16px;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* Timer */
+.timer-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.timer {
+    background: white;
+    padding: 15px 30px;
+    border-radius: 30px;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.timer.warning {
+    background: #FFF3CD;
+    color: #856404;
+}
+
+.timer.danger {
+    background: #F8D7DA;
+    color: #721C24;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+/* Progress Bar */
+.quiz-progress-container {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    margin-bottom: 30px;
+}
+
+.quiz-progress-bar {
+    width: 100%;
+    height: 12px;
+    background: var(--bg-light);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.quiz-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    transition: width 0.3s;
+    width: 0%;
+}
+
+.quiz-progress-text {
+    text-align: center;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+/* Question Card */
+.question-card {
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    margin-bottom: 30px;
+}
+
+/* Utility to hide non-active question cards */
+.hidden {
+    display: none !important;
+}
+
+.question-number {
+    display: inline-block;
+    padding: 6px 16px;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 20px;
+}
+
+.question-text {
+    font-size: 22px;
+    line-height: 1.6;
+    margin-bottom: 30px;
+    color: var(--text-dark);
+}
+
+/* Answers */
+.answers-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.answer-option {
+    display: block;
+    cursor: pointer;
+    position: relative;
+}
+
+.answer-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+}
+
+.answer-content {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 20px;
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    transition: all 0.3s;
+    background: white;
+}
+
+.answer-option input[type="radio"]:checked + .answer-content {
+    border-color: var(--primary-color);
+    background: #E3F2FD;
+}
+
+.answer-option:hover .answer-content {
+    border-color: var(--primary-color);
+    transform: translateX(5px);
+}
+
+.answer-letter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: var(--bg-light);
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.answer-option input[type="radio"]:checked + .answer-content .answer-letter {
+    background: var(--primary-color);
+    color: white;
+}
+
+.answer-text {
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+/* Navigation */
+.quiz-navigation {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .quiz-header {
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .question-card {
+        padding: 25px;
+    }
+    
+    .question-text {
+        font-size: 18px;
+    }
+    
+    .quiz-navigation {
+        flex-direction: column;
+    }
+    
+    .quiz-navigation button {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const totalQuestions = Number("{{ questions|length }}");
+const quizId = Number("{{ quiz.id }}");
+const rawTimeLimit = "{{ (quiz.time_limit_minutes * 60) if quiz.time_limit_minutes else 'null' }}";
+const timeLimit = (rawTimeLimit === "null") ? null : Number(rawTimeLimit);
+
+let currentQuestion = 1;
+let startTime = Date.now();
+let timerInterval;
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    // Ensure only the first question card is visible
+    const cards = document.querySelectorAll('.question-card');
+    cards.forEach((el, idx) => {
+        if (idx === 0) {
+            el.classList.remove('hidden');
+        } else {
+            el.classList.add('hidden');
+        }
+    });
+
+    updateProgress();
+
+    if (timeLimit !== null) {
+        startTimer();
+    }
+});
+
+// Timer
+function startTimer() {
+    let timeLeft = timeLimit;
+    
+    timerInterval = setInterval(() => {
+        timeLeft--;
+        
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        
+        document.getElementById('timer-display').textContent = 
+            `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        
+        const timer = document.querySelector('.timer');
+        if (timeLeft <= 60) {
+            timer.classList.add('danger');
+        } else if (timeLeft <= 300) {
+            timer.classList.add('warning');
+        }
+        
+        if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            alert('Timpul a expirat! Quiz-ul va fi trimis automat.');
+            document.getElementById('quizForm').dispatchEvent(new Event('submit'));
+        }
+    }, 1000);
+}
+
+// Navigation
+document.getElementById('nextBtn').addEventListener('click', function() {
+    const currentCard = document.querySelector(`[data-question="${currentQuestion}"]`);
+    const inputs = currentCard.querySelectorAll('input[type="radio"]');
+    const answered = Array.from(inputs).some(input => input.checked);
+    
+    if (!answered) {
+        alert('Te rugăm să selectezi un răspuns!');
+        return;
+    }
+    
+    if (currentQuestion < totalQuestions) {
+        // hide current and show next using the .hidden class so CSS !important
+        currentCard.classList.add('hidden');
+        currentQuestion++;
+        const nextCard = document.querySelector(`[data-question="${currentQuestion}"]`);
+        if (nextCard) nextCard.classList.remove('hidden');
+        updateProgress();
+        updateButtons();
+    }
+});
+
+document.getElementById('prevBtn').addEventListener('click', function() {
+    if (currentQuestion > 1) {
+        const currentCard = document.querySelector(`[data-question="${currentQuestion}"]`);
+        if (currentCard) currentCard.classList.add('hidden');
+        currentQuestion--;
+        const prevCard = document.querySelector(`[data-question="${currentQuestion}"]`);
+        if (prevCard) prevCard.classList.remove('hidden');
+        updateProgress();
+        updateButtons();
+    }
+});
+
+function updateButtons() {
+    document.getElementById('prevBtn').style.display = currentQuestion > 1 ? 'block' : 'none';
+    document.getElementById('nextBtn').style.display = currentQuestion < totalQuestions ? 'block' : 'none';
+    document.getElementById('submitBtn').style.display = currentQuestion === totalQuestions ? 'block' : 'none';
+}
+
+function updateProgress() {
+    const progress = (currentQuestion / totalQuestions) * 100;
+    document.getElementById('progressBar').style.width = progress + '%';
+    document.getElementById('currentQuestion').textContent = currentQuestion;
+}
+
+// Submit
+document.getElementById('quizForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    // Colectează răspunsurile
+    const formData = new FormData(this);
+    const answers = {};
+    
+    for (let [key, value] of formData.entries()) {
+        const questionId = key.replace('question_', '');
+        answers[questionId] = value;
+    }
+    
+    // Verifică că toate întrebările au răspuns
+    if (Object.keys(answers).length < totalQuestions) {
+        alert('Te rugăm să răspunzi la toate întrebările!');
+        return;
+    }
+    
+    // Stop timer
+    if (timerInterval) {
+        clearInterval(timerInterval);
+    }
+    
+    // Calculează timpul
+    const timeTaken = Math.floor((Date.now() - startTime) / 1000);
+    
+    // Disable submit button
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Se evaluează...';
+    
+    try {
+        const response = await fetch(`/api/quiz/${quizId}/submit`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                answers: answers,
+                time_taken_seconds: timeTaken
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Redirect la pagina de rezultate
+            window.location.href = `/quiz/${quizId}/results/${data.submission_id}`;
+        } else {
+            alert(data.error || 'A apărut o eroare!');
+            submitBtn.disabled = false;
+            submitBtn.textContent = '✅ Trimite Răspunsurile';
+        }
+        
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Nu s-a putut trimite quiz-ul. Verifică conexiunea!');
+        submitBtn.disabled = false;
+        submitBtn.textContent = '✅ Trimite Răspunsurile';
+    }
+});
+</script>
+{% endblock %}

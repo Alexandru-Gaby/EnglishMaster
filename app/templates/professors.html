@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+
+{% block title %}Profesori - EnglishMaster{% endblock %}
+
+{% block content %}
+<div class="professors-page">
+    <div class="container">
+        <div class="page-header">
+            <h1>Alege un Profesor pentru Feedback</h1>
+            <p>
+                Ai <strong>{{ current_user.points }}</strong> puncte. 
+                {% if current_user.can_request_feedback() %}
+                    ✅ Poți solicita feedback!
+                {% else %}
+                    ❌ Necesită 500 puncte pentru feedback.
+                {% endif %}
+            </p>
+        </div>
+
+        <div id="message-container" class="message-container" style="display: none;"></div>
+
+        {% if not current_user.can_request_feedback() %}
+        <div class="alert alert-warning">
+            <strong>⚠️ Atenție!</strong> Ai nevoie de cel puțin 500 puncte pentru a programa o întâlnire. 
+            Rezolvă lecții și teste pentru a acumula puncte!
+        </div>
+        {% endif %}
+
+        <div class="professors-grid">
+            {% for professor in professors %}
+            <div class="professor-card">
+                <div class="professor-avatar">
+                    <span class="avatar-icon">👨‍🏫</span>
+                </div>
+                <div class="professor-info">
+                    <h3>{{ professor.get_full_name() }}</h3>
+                    <p class="professor-spec">{{ professor.specialization or 'Gramatică & Vocabular' }}</p>
+                    <div class="professor-rating">
+                        {% if professor.rating > 0 %}
+                            {% set stars = professor.rating|int %}
+                            {% for i in range(5) %}
+                                {% if i < stars %}⭐{% else %}☆{% endif %}
+                            {% endfor %}
+                            <span>({{ "%.1f"|format(professor.rating) }} / {{ professor.total_reviews }} recenzii)</span>
+                        {% else %}
+                            <span class="text-muted">Fără recenzii încă</span>
+                        {% endif %}
+                    </div>
+                    {% if professor.bio %}
+                    <p class="professor-bio">{{ professor.bio }}</p>
+                    {% endif %}
+                </div>
+                <div class="professor-actions">
+                    <button 
+                        class="btn btn-primary btn-book" 
+                        data-professor-id="{{ professor.id }}" 
+                        data-professor-name="{{ professor.get_full_name()|e }}"
+                        {% if not current_user.can_request_feedback() %}disabled title="Ai nevoie de 500 puncte"{% endif %}
+                    >
+                        📅 Programează (500 puncte)
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if not professors %}
+        <div class="empty-state">
+            <span class="empty-icon">🔍</span>
+            <h3>Niciun profesor disponibil momentan</h3>
+            <p>Verifică mai târziu pentru a găsi profesori disponibili.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal pentru programarea întâlnirii -->
+<div id="bookingModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Programează Întâlnire</h2>
+            <button class="modal-close" onclick="closeBookingModal()">&times;</button>
+        </div>
+        <form id="bookingForm">
+            <input type="hidden" id="professor_id" name="professor_id">
+            
+            <div class="form-group">
+                <label>Profesor selectat</label>
+                <input type="text" id="professor_name" class="form-control" readonly>
+            </div>
+
+            <div class="form-group">
+                <label for="meeting_date">Data și Ora Întâlnirii *</label>
+                <input 
+                    type="datetime-local" 
+                    id="meeting_date" 
+                    name="meeting_date" 
+                    class="form-control"
+                    required
+                >
+                <small class="form-help">Alege o dată și oră în viitor</small>
+            </div>
+
+            <div class="form-group">
+                <label for="message">Mesaj pentru profesor (opțional)</label>
+                <textarea 
+                    id="message" 
+                    name="message" 
+                    class="form-control" 
+                    rows="4"
+                    placeholder="Descrie pe scurt subiectele la care ai nevoie de ajutor..."
+                ></textarea>
+            </div>
+
+            <div class="form-info">
+                <p><strong>💰 Cost:</strong> 500 puncte</p>
+                <p><strong>⏱️ Durată:</strong> 60 minute</p>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" id="submitBooking">
+                Trimite Cerere
+            </button>
+        </form>
+    </div>
+</div>
+<div id="modalBackdrop" class="modal-backdrop" style="display: none;" onclick="closeBookingModal()"></div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.professors-page {
+    padding: 40px 0;
+}
+
+.page-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.page-header h1 {
+    margin-bottom: 10px;
+}
+
+.alert {
+    padding: 15px 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+}
+
+.alert-warning {
+    background: #FFF3CD;
+    color: #856404;
+    border: 1px solid #FFEAA7;
+}
+
+.professors-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 30px;
+}
+
+.professor-card {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: var(--shadow);
+    transition: transform 0.3s;
+}
+
+.professor-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-lg);
+}
+
+.professor-avatar {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.avatar-icon {
+    font-size: 64px;
+}
+
+.professor-info {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.professor-info h3 {
+    margin-bottom: 5px;
+    font-size: 20px;
+}
+
+.professor-spec {
+    color: var(--primary-color);
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.professor-rating {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 10px;
+}
+
+.professor-bio {
+    font-size: 14px;
+    color: var(--text-light);
+    line-height: 1.5;
+}
+
+.text-muted {
+    color: #999;
+}
+
+.btn-book:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.empty-icon {
+    font-size: 64px;
+    display: block;
+    margin-bottom: 20px;
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1001;
+    max-width: 500px;
+    width: 90%;
+}
+
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 22px;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 28px;
+    cursor: pointer;
+    color: var(--text-light);
+}
+
+.modal-close:hover {
+    color: var(--text-dark);
+}
+
+.modal-content form {
+    padding: 25px;
+}
+
+.form-info {
+    background: var(--bg-light);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.form-info p {
+    margin: 5px 0;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/professors.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.btn-book').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var id = this.dataset.professorId;
+            var name = this.dataset.professorName;
+            if (typeof openBookingModal === 'function') {
+                openBookingModal(id, name);
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

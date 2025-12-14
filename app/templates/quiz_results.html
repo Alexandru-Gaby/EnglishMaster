@@ -1,0 +1,574 @@
+{% extends "base.html" %}
+
+{% block title %}Rezultate Quiz - EnglishMaster{% endblock %}
+
+{% block content %}
+<div class="results-page">
+    <div class="container">
+        <div class="result-header {% if submission.passed %}passed{% else %}failed{% endif %}">
+            <div class="result-icon">
+                {% if submission.passed %}
+                    <span class="icon-success">🎉</span>
+                {% else %}
+                    <span class="icon-fail">😔</span>
+                {% endif %}
+            </div>
+            <h1>
+                {% if submission.passed %}
+                    Felicitări! Ai promovat!
+                {% else %}
+                    Mai încearcă o dată!
+                {% endif %}
+            </h1>
+            <p class="result-message">
+                {% if submission.passed %}
+                    Ai trecut cu succes testul pentru lecția "{{ lesson.title }}"
+                {% else %}
+                    Ai nevoie de minim {{ quiz.passing_score }}% pentru a promova. Nu te descuraja!
+                {% endif %}
+            </p>
+        </div>
+
+        <!-- Score Card -->
+        <div class="score-card">
+            <div class="score-main">
+                <div class="score-circle {% if submission.passed %}passed{% else %}failed{% endif %}">
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" class="score-bg"></circle>
+                        <circle cx="50" cy="50" r="45" class="score-fill" 
+                                 style="--dash: {{ (submission.score * 2.827)|round(3) }};"></circle>
+                    </svg>
+                    <div class="score-text">
+                        <span class="score-number">{{ submission.score|int }}%</span>
+                        <span class="score-label">Scor</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="score-details">
+                <div class="detail-item">
+                    <span class="detail-icon">⭐</span>
+                    <div>
+                        <strong>+{{ submission.points_earned }} puncte</strong>
+                        <small>Puncte câștigate</small>
+                    </div>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-icon">⏱️</span>
+                    <div>
+                        <strong>{{ '%02d:%02d'|format(submission.time_taken_seconds // 60, submission.time_taken_seconds % 60) }}</strong>
+                        <small>Timp petrecut</small>
+                    </div>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-icon">📝</span>
+                    <div>
+                        <strong>{{ questions|length }} întrebări</strong>
+                        <small>Total</small>
+                    </div>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-icon">🎯</span>
+                    <div>
+                        <strong>Încercarea {{ submission.attempt_number }}</strong>
+                        <small>din {{ quiz.max_attempts }}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Badge-uri noi -->
+        {% if new_badges %}
+        <div class="badges-earned">
+            <h2>🏆 Badge-uri Noi Câștigate!</h2>
+            <div class="badges-grid">
+                {% for badge in new_badges %}
+                <div class="badge-card new-badge">
+                    <div class="badge-icon">{{ badge.icon }}</div>
+                    <h3>{{ badge.name }}</h3>
+                    <p>{{ badge.description }}</p>
+                    <span class="badge-level level-{{ badge.level }}">{{ badge.level|upper }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Întrebări de revizuire -->
+        <div class="questions-review">
+            <h2>📋 Revizuire Răspunsuri</h2>
+            
+            {% for question in questions %}
+            <div class="review-card {% if user_answers.get(question.id|string, '').upper() == question.correct_answer.upper() %}correct{% else %}incorrect{% endif %}">
+                <div class="review-header">
+                    <span class="review-number">Întrebarea {{ loop.index }}</span>
+                    {% if user_answers.get(question.id|string, '').upper() == question.correct_answer.upper() %}
+                        <span class="review-badge correct">✓ Corect</span>
+                    {% else %}
+                        <span class="review-badge incorrect">✗ Incorect</span>
+                    {% endif %}
+                </div>
+                
+                <h3 class="review-question">{{ question.question_text }}</h3>
+                
+                <div class="review-answers">
+                    {% if question.question_type == 'multiple_choice' %}
+                        {% for letter, option in [('A', question.option_a), ('B', question.option_b), ('C', question.option_c), ('D', question.option_d)] %}
+                        {% if option %}
+                        <div class="review-answer 
+                                    {% if letter == question.correct_answer.upper() %}is-correct{% endif %}
+                                    {% if letter == user_answers.get(question.id|string, '').upper() %}is-selected{% endif %}">
+                            <span class="review-letter">{{ letter }}</span>
+                            <span class="review-text">{{ option }}</span>
+                            {% if letter == question.correct_answer.upper() %}
+                                <span class="review-icon">✓</span>
+                            {% elif letter == user_answers.get(question.id|string, '').upper() %}
+                                <span class="review-icon">✗</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    {% elif question.question_type == 'true_false' %}
+                        <div class="review-answer 
+                                    {% if 'T' == question.correct_answer.upper() %}is-correct{% endif %}
+                                    {% if 'T' == user_answers.get(question.id|string, '').upper() %}is-selected{% endif %}">
+                            <span class="review-letter">✓</span>
+                            <span class="review-text">Adevărat (True)</span>
+                            {% if 'T' == question.correct_answer.upper() %}
+                                <span class="review-icon">✓</span>
+                            {% elif 'T' == user_answers.get(question.id|string, '').upper() %}
+                                <span class="review-icon">✗</span>
+                            {% endif %}
+                        </div>
+                        <div class="review-answer 
+                                    {% if 'F' == question.correct_answer.upper() %}is-correct{% endif %}
+                                    {% if 'F' == user_answers.get(question.id|string, '').upper() %}is-selected{% endif %}">
+                            <span class="review-letter">✗</span>
+                            <span class="review-text">Fals (False)</span>
+                            {% if 'F' == question.correct_answer.upper() %}
+                                <span class="review-icon">✓</span>
+                            {% elif 'F' == user_answers.get(question.id|string, '').upper() %}
+                                <span class="review-icon">✗</span>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                {% if question.explanation %}
+                <div class="review-explanation">
+                    <strong>💡 Explicație:</strong>
+                    <p>{{ question.explanation }}</p>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Actiuni -->
+        <div class="result-actions">
+            <a href="{{ url_for('main.lesson_detail', lesson_id=lesson.id) }}" class="btn btn-secondary">
+                📖 Înapoi la Lecție
+            </a>
+            {% if not submission.passed and submission.attempt_number < quiz.max_attempts %}
+            <a href="{{ url_for('main.quiz_page', quiz_id=quiz.id) }}" class="btn btn-primary">
+                🔄 Încearcă din nou
+            </a>
+            {% endif %}
+            <a href="{{ url_for('main.lessons_page') }}" class="btn btn-outline">
+                📚 Alte Lecții
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.results-page {
+    padding: 40px 0;
+    background: var(--bg-light);
+}
+
+/* Header */
+.result-header {
+    text-align: center;
+    padding: 50px 30px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    background: white;
+    box-shadow: var(--shadow);
+}
+
+.result-header.passed {
+    background: linear-gradient(135deg, #D4EDDA 0%, #C3E6CB 100%);
+}
+
+.result-header.failed {
+    background: linear-gradient(135deg, #F8D7DA 0%, #F5C6CB 100%);
+}
+
+.result-icon {
+    font-size: 80px;
+    margin-bottom: 20px;
+}
+
+.result-header h1 {
+    font-size: 36px;
+    margin-bottom: 10px;
+}
+
+.result-message {
+    font-size: 18px;
+    color: var(--text-light);
+}
+
+/* Score Card */
+.score-card {
+    background: white;
+    border-radius: 12px;
+    padding: 40px;
+    box-shadow: var(--shadow);
+    margin-bottom: 30px;
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 40px;
+    align-items: center;
+}
+
+.score-circle {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    margin: 0 auto;
+}
+
+.score-circle svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.score-bg {
+    fill: none;
+    stroke: var(--bg-light);
+    stroke-width: 8;
+}
+
+.score-fill {
+    fill: none;
+    stroke: var(--primary-color);
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dasharray 1s ease;
+}
+
+.score-circle.failed .score-fill {
+    stroke: #E74C3C;
+}
+
+.score-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.score-number {
+    display: block;
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.score-circle.failed .score-number {
+    color: #E74C3C;
+}
+
+.score-label {
+    display: block;
+    font-size: 14px;
+    color: var(--text-light);
+}
+
+.score-details {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.detail-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 20px;
+    background: var(--bg-light);
+    border-radius: 12px;
+}
+
+.detail-icon {
+    font-size: 32px;
+}
+
+.detail-item strong {
+    display: block;
+    font-size: 18px;
+    color: var(--text-dark);
+}
+
+.detail-item small {
+    display: block;
+    font-size: 13px;
+    color: var(--text-light);
+}
+
+/* Badges */
+.badges-earned {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: var(--shadow);
+    margin-bottom: 30px;
+}
+
+.badges-earned h2 {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.badges-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.badge-card {
+    text-align: center;
+    padding: 25px;
+    border-radius: 12px;
+    background: var(--bg-light);
+}
+
+.badge-card.new-badge {
+    background: linear-gradient(135deg, #FFF3CD, #FFEAA7);
+    animation: badgeAppear 0.5s ease;
+}
+
+@keyframes badgeAppear {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.badge-icon {
+    font-size: 64px;
+    margin-bottom: 15px;
+}
+
+.badge-card h3 {
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+.badge-card p {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 15px;
+}
+
+.badge-level {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.badge-level.level-bronze { background: #CD7F32; color: white; }
+.badge-level.level-silver { background: #C0C0C0; color: white; }
+.badge-level.level-gold { background: #FFD700; color: #333; }
+.badge-level.level-platinum { background: #E5E4E2; color: #333; }
+
+/* Questions Review */
+.questions-review {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: var(--shadow);
+    margin-bottom: 30px;
+}
+
+.questions-review h2 {
+    margin-bottom: 30px;
+}
+
+.review-card {
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border-left: 5px solid #ccc;
+}
+
+.review-card.correct {
+    background: #D4EDDA;
+    border-left-color: #28A745;
+}
+
+.review-card.incorrect {
+    background: #F8D7DA;
+    border-left-color: #DC3545;
+}
+
+.review-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.review-number {
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.review-badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.review-badge.correct {
+    background: #28A745;
+    color: white;
+}
+
+.review-badge.incorrect {
+    background: #DC3545;
+    color: white;
+}
+
+.review-question {
+    font-size: 18px;
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+.review-answers {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.review-answer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 15px;
+    border-radius: 8px;
+    background: white;
+    border: 2px solid transparent;
+}
+
+.review-answer.is-correct {
+    background: #D4EDDA;
+    border-color: #28A745;
+}
+
+.review-answer.is-selected:not(.is-correct) {
+    background: #F8D7DA;
+    border-color: #DC3545;
+}
+
+.review-letter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: var(--bg-light);
+    border-radius: 50%;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.review-answer.is-correct .review-letter {
+    background: #28A745;
+    color: white;
+}
+
+.review-text {
+    flex: 1;
+}
+
+.review-icon {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.review-answer.is-correct .review-icon {
+    color: #28A745;
+}
+
+.review-answer.is-selected:not(.is-correct) .review-icon {
+    color: #DC3545;
+}
+
+.review-explanation {
+    padding: 15px;
+    background: #E3F2FD;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+.review-explanation strong {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--primary-color);
+}
+
+.review-explanation p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+/* Actions */
+.result-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* Responsive */
+@media (max-width: 968px) {
+    .score-card {
+        grid-template-columns: 1fr;
+    }
+    
+    .score-details {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .result-header h1 {
+        font-size: 28px;
+    }
+    
+    .result-actions {
+        flex-direction: column;
+    }
+    
+    .result-actions .btn {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}

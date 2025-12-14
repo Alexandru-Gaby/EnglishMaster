@@ -103,9 +103,47 @@
 
                 <!-- Acțiuni -->
                 <div class="lesson-actions">
-                    <button class="btn btn-success btn-large" onclick="markAsComplete()">
-                        ✅ Marchează ca finalizat
-                    </button>
+                    {% if quiz %}
+                        {% if submissions %}
+                            {% set best_submission = submissions|sort(attribute='score', reverse=True)|first %}
+                            <div class="quiz-status">
+                                {% if best_submission.passed %}
+                                    <span class="status-icon">✅</span>
+                                    <div>
+                                        <strong>Ai promovat!</strong>
+                                        <small>Cel mai bun scor: {{ best_submission.score|int }}%</small>
+                                    </div>
+                                {% else %}
+                                    <span class="status-icon">📝</span>
+                                    <div>
+                                        <strong>Încearcă din nou</strong>
+                                        <small>Încercări: {{ submissions|length }} / {{ quiz.max_attempts }}</small>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        
+                        {% if not submissions or (submissions|length < quiz.max_attempts and not submissions|selectattr('passed')|list) %}
+                            <a href="{{ url_for('main.quiz_page', quiz_id=quiz.id) }}" class="btn btn-success btn-large">
+                                {% if submissions %}
+                                    🔄 Reîncearcă Quiz-ul
+                                {% else %}
+                                    ✅ Începe Quiz-ul ({{ quiz.points_reward }} puncte)
+                                {% endif %}
+                            </a>
+                        {% endif %}
+                        
+                        {% if submissions %}
+                            <a href="{{ url_for('main.quiz_results', quiz_id=quiz.id, submission_id=submissions[0].id) }}" class="btn btn-secondary">
+                                📊 Vezi Ultimul Rezultat
+                            </a>
+                        {% endif %}
+                    {% else %}
+                        <div class="alert alert-info">
+                            ℹ️ Quiz-ul pentru această lecție va fi disponibil în curând!
+                        </div>
+                    {% endif %}
+                    
                     <button class="btn btn-secondary" onclick="saveLesson()">
                         🔖 Salvează lecția
                     </button>
@@ -367,6 +405,43 @@
     flex-wrap: wrap;
 }
 
+.quiz-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 15px 20px;
+    background: var(--bg-light);
+    border-radius: 8px;
+    flex: 1;
+}
+
+.status-icon {
+    font-size: 32px;
+}
+
+.quiz-status div strong {
+    display: block;
+    color: var(--text-dark);
+    margin-bottom: 3px;
+}
+
+.quiz-status div small {
+    display: block;
+    color: var(--text-light);
+    font-size: 13px;
+}
+
+.alert {
+    padding: 15px 20px;
+    border-radius: 8px;
+    flex: 1;
+}
+
+.alert-info {
+    background: #E3F2FD;
+    color: #1976D2;
+}
+
 .btn-large {
     padding: 15px 30px;
     font-size: 16px;
@@ -485,10 +560,10 @@
 
 {% block extra_js %}
 <script>
-function markAsComplete() {
-    alert('Funcționalitate în dezvoltare! Lecția va fi marcată ca finalizată și vei primi puncte.');
-    // TODO: Implementare în Sprint 3 cu quiz-uri
-}
+// function markAsComplete() {
+//     alert('Funcționalitate în dezvoltare! Lecția va fi marcată ca finalizată și vei primi puncte.');
+//     // TODO: Implementare în Sprint 3 cu quiz-uri
+// }
 
 function saveLesson() {
     alert('Lecție salvată! Vei găsi lecțiile salvate în profilul tău.');
@@ -506,8 +581,8 @@ window.addEventListener('scroll', function() {
     const progress = Math.min((scrolled / (contentHeight - windowHeight)) * 100, 100);
     
     const progressBar = document.querySelector('.progress-fill');
-    if (progressBar) {
-        progressBar.style.width = progress + '%';
+    if (progressBar && progress > 0) {
+        progressBar.style.width = Math.max(progress, 10) + '%';
     }
 });
 </script>

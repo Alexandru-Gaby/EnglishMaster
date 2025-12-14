@@ -13,6 +13,10 @@
 
         <div class="filters-section">
             <h3>Filtrează după nivel:</h3>
+            <div class="lessons-count">
+                <span class="count">{{ lessons|length }}</span>
+                <span class="label">lecții disponibile</span>
+            </div>
             <div class="filter-buttons">
                 <a href="{{ url_for('main.lessons_page', level='all') }}" 
                    class="filter-btn {% if current_level == 'all' %}active{% endif %}">
@@ -33,12 +37,6 @@
             </div>
         </div>
 
-        <div class="lessons-stats">
-            <div class="stat-item">
-                <span class="stat-number">{{ lessons|length }}</span>
-                <span class="stat-label">Lecții disponibile</span>
-            </div>
-        </div>
 
         <!-- Lista de lecții -->
         {% if lessons %}
@@ -180,6 +178,29 @@
     border-color: var(--primary-dark);
 }
 
+/* Compact lessons count inside filters box */
+.lessons-count {
+    position: absolute;
+    right: 28px;
+    top: 28px;
+    background: rgba(0,0,0,0.04);
+    padding: 6px 10px;
+    border-radius: 20px;
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+}
+.lessons-count .count {
+    font-weight: 700;
+    color: var(--primary-color);
+}
+.lessons-count .label {
+    font-size: 12px;
+    color: #666;
+}
+
+.filters-section { position: relative; }
+
 /* Stats */
 .lessons-stats {
     display: flex;
@@ -188,27 +209,6 @@
     margin-bottom: 40px;
 }
 
-.stat-item {
-    background: white;
-    padding: 20px 40px;
-    border-radius: 14px;
-    box-shadow: var(--shadow);
-    text-align: center;
-}
-
-.stat-number {
-    display: block;
-    font-size: 36px;
-    font-weight: 700;
-    color: var(--primary-color);
-}
-
-.stat-label {
-    display: block;
-    color: var(--text-light);
-    font-size: 14px;
-    margin-top: 5px;
-}
 
 .lessons-grid {
     display: grid;

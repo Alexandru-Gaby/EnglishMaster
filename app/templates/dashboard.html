@@ -15,8 +15,8 @@
             <div class="stat-card">
                 <span class="stat-icon">⭐</span>
                 <div>
-                    <div class="stat-number">{{ current_user.points }}</div>
-                    <div class="stat-label">Puncte</div>
+                    <div id="totalPoints" class="stat-number">{{ current_user.points }}</div>
+                    <div class="stat-label">Puncte Totale</div>
                 </div>
             </div>
             
@@ -36,10 +36,18 @@
                 </div>
             </div>
             {% else %}
+            <!-- Statistici pentru studenți -->
+            <div class="stat-card">
+                <span class="stat-icon">📚</span>
+                <div>
+                    <div class="stat-number" id="completedLessons">0</div>
+                    <div class="stat-label">Lecții Finalizate</div>
+                </div>
+            </div>
             <div class="stat-card">
                 <span class="stat-icon">🏆</span>
                 <div>
-                    <div class="stat-number">0</div>
+                    <div class="stat-number" id="totalBadges">0</div>
                     <div class="stat-label">Badge-uri</div>
                 </div>
             </div>
@@ -47,13 +55,58 @@
                 <span class="stat-icon">🔥</span>
                 <div>
                     <div class="stat-number">0</div>
-                    <div class="stat-label">Zile consecutive</div>
+                    <div class="stat-label">Zile Consecutive</div>
                 </div>
             </div>
             {% endif %}
         </div>
 
-        
+        {% if current_user.role == 'user' %}
+        <!-- Progres Section (doar pentru studenți) -->
+        <div class="progress-section">
+            <h2>📈 Progresul Tău</h2>
+            
+            <div class="progress-overview">
+                <div class="progress-details">
+                    <div class="progress-item">
+                        <span class="progress-emoji">📚</span>
+                        <strong>Lecții în progres:</strong>
+                        <span id="inProgressLessons" class="progress-value">0</span>
+                    </div>
+                    <div class="progress-item">
+                        <span class="progress-emoji">📝</span>
+                        <strong>Quiz-uri susținute:</strong>
+                        <span id="totalQuizzes" class="progress-value">0</span>
+                    </div>
+                    <div class="progress-item">
+                        <span class="progress-emoji">🎯</span>
+                        <strong>Scor mediu:</strong>
+                        <span id="averageScore" class="progress-value">0%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="recent-activity">
+            <h2>📋 Activitate Recentă</h2>
+            <div id="recentActivity" class="activity-list">
+                <p class="text-muted">Se încarcă...</p>
+            </div>
+        </div>
+
+        <!-- Badges Section -->
+        <div class="badges-section">
+            <div class="section-header">
+                <h2>🏆 Badge-urile Tale</h2>
+            </div>
+            <div id="badgesContainer" class="badges-container">
+                <p class="text-muted">Se încarcă...</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Acțiuni rapide -->
         <div class="quick-actions">
             <h2>Acțiuni Rapide</h2>
             <div class="actions-grid">
@@ -90,7 +143,7 @@
                         <h3>Cereri de Întâlniri</h3>
                         <p>Gestionează programul</p>
                     </a>
-                    <a href="#" class="action-card">
+                    <a href="{{ url_for('main.my_lessons') }}" class="action-card">
                         <span class="action-icon">📝</span>
                         <h3>Lecțiile Mele</h3>
                         <p>Creează conținut</p>
@@ -273,5 +326,206 @@
 .status-badge.status-confirmed { background: #D4EDDA; color: #155724; }
 .status-badge.status-rejected { background: #F8D7DA; color: #721C24; }
 .status-badge.status-completed { background: #D1ECF1; color: #0C5460; }
+
+/* Progress Circle - Reduced Size */
+.progress-circle {
+    width: 180px !important;
+    height: 180px !important;
+    margin: 0 auto;
+}
+
+.progress-circle svg {
+    width: 100%;
+    height: 100%;
+}
+
+.progress-text {
+    font-size: 16px;
+}
+
+.progress-number {
+    font-size: 28px !important;
+    font-weight: 700;
+}
+
+/* Progress Details Gamification */
+.progress-details {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-left: 30px;
+}
+
+.progress-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.progress-item:hover {
+    transform: translateX(8px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.progress-emoji {
+    font-size: 24px;
+    min-width: 28px;
+    text-align: center;
+    animation: bounce 2s infinite;
+}
+
+.progress-value {
+    font-weight: 700;
+    font-size: 18px;
+    color: #667eea;
+    margin-left: auto;
+    background: white;
+    padding: 4px 12px;
+    border-radius: 6px;
+    min-width: 50px;
+    text-align: center;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+}
+
+@media (max-width: 768px) {
+    .progress-overview {
+        flex-direction: column;
+    }
+    
+    .progress-details {
+        margin-left: 0;
+        margin-top: 20px;
+    }
+}
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadDashboard() {
+    try {
+        const res = await fetch('/api/progress');
+        const data = await res.json();
+        if (!data.success) return;
+
+        const stats = data.stats || {};
+
+        // Update top-level stats
+        const totalPointsEl = document.getElementById('totalPoints');
+        if (totalPointsEl) totalPointsEl.textContent = stats.total_points;
+
+        const completedLessonsEl = document.getElementById('completedLessons');
+        if (completedLessonsEl) completedLessonsEl.textContent = stats.completed_lessons;
+
+        const totalBadgesEl = document.getElementById('totalBadges');
+        if (totalBadgesEl) totalBadgesEl.textContent = stats.total_badges;
+
+        const completionRateEl = document.getElementById('completionRate');
+        if (completionRateEl) completionRateEl.textContent = (stats.completion_rate || 0) + '%';
+
+        const inProgEl = document.getElementById('inProgressLessons');
+        if (inProgEl) inProgEl.textContent = stats.in_progress_lessons;
+
+        const totalQuizzesEl = document.getElementById('totalQuizzes');
+        if (totalQuizzesEl) totalQuizzesEl.textContent = (data.recent_quizzes || []).length;
+
+        // Average score: compute from recent_quizzes if available
+        const avgEl = document.getElementById('averageScore');
+        if (avgEl) {
+            const recent = data.recent_quizzes || [];
+            if (recent.length > 0) {
+                const sum = recent.reduce((s, q) => s + (q.score || 0), 0);
+                const avg = Math.round((sum / recent.length) * 10) / 10; // one decimal
+                avgEl.textContent = avg + '%';
+            } else {
+                avgEl.textContent = '0%';
+            }
+        }
+
+        // Recent activity
+        const recentContainer = document.getElementById('recentActivity');
+        if (recentContainer) {
+            recentContainer.innerHTML = '';
+            const recent = data.recent_quizzes || [];
+            if (recent.length === 0) {
+                recentContainer.innerHTML = '<p class="text-muted">Nicio activitate recentă.</p>';
+            } else {
+                recent.forEach(s => {
+                    const d = new Date(s.submitted_at);
+                    const item = document.createElement('div');
+                    item.className = 'activity-item';
+                    const lessonLabel = s.lesson_title ? s.lesson_title : ('#' + s.lesson_id);
+                    item.innerHTML = `
+                        <div class="activity-row">
+                            <div><strong>${s.quiz_id ? 'Quiz' : ''}</strong> la lecția ${lessonLabel}</div>
+                            <div><strong>${s.score}%</strong></div>
+                        </div>
+                       <div class="activity-meta">${d.toLocaleString('ro-RO', { 
+                            day: '2-digit', 
+                            month: '2-digit', 
+                            year: 'numeric', 
+                            hour: '2-digit', 
+                            minute: '2-digit', 
+                            second: '2-digit' 
+                    })}</div>
+
+                    `;
+                    recentContainer.appendChild(item);
+                });
+            }
+        }
+
+        // Badges
+        const badgesContainer = document.getElementById('badgesContainer');
+        if (badgesContainer) {
+            badgesContainer.innerHTML = '';
+            const badges = data.badges || [];
+            if (badges.length === 0) {
+                badgesContainer.innerHTML = '<p class="text-muted">Nu ai încă badge-uri.</p>';
+            } else {
+                const grid = document.createElement('div');
+                grid.className = 'badges-grid';
+                badges.forEach(b => {
+                    const card = document.createElement('div');
+                    card.className = 'badge-card';
+                    card.innerHTML = `
+                        <div class="badge-icon">${b.icon || '🏆'}</div>
+                        <div class="badge-info">
+                            <div class="badge-name">${b.name}</div>
+                            <div class="badge-desc">${b.description}</div>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+                badgesContainer.appendChild(grid);
+            }
+        }
+
+    } catch (err) {
+        console.error('Could not load dashboard data', err);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadDashboard);
+</script>
+
+<style>
+.activity-item { padding: 10px 12px; border-radius: 8px; background: #fff; margin-bottom: 10px; box-shadow: var(--shadow); }
+.activity-row { display:flex; justify-content:space-between; font-weight:600; }
+.activity-meta { color: #666; font-size:12px; margin-top:6px; }
+.badges-grid { display:flex; gap:10px; flex-wrap:wrap; }
+.badge-card { background:white; padding:10px 12px; border-radius:8px; display:flex; gap:10px; align-items:center; box-shadow:var(--shadow);} 
+.badge-icon { font-size:22px; }
+.badge-name { font-weight:700; }
+.badge-desc { font-size:12px; color:#666; }
+</style>
+
 {% endblock %}

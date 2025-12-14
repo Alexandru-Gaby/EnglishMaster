@@ -13,21 +13,21 @@
                     <div class="stat-card">
                         <span class="stat-icon">⭐</span>
                         <div>
-                            <div class="stat-number">{{ current_user.points }}</div>
+                            <div class="stat-number" id="homePoints">{{ current_user.points }}</div>
                             <div class="stat-label">Puncte</div>
                         </div>
                     </div>
                     <div class="stat-card">
                         <span class="stat-icon">🏆</span>
                         <div>
-                            <div class="stat-number">0</div>
+                            <div class="stat-number" id="homeBadges">0</div>
                             <div class="stat-label">Badge-uri</div>
                         </div>
                     </div>
                     <div class="stat-card">
                         <span class="stat-icon">🔥</span>
                         <div>
-                            <div class="stat-number">0</div>
+                            <div class="stat-number" id="homeStreak">0</div>
                             <div class="stat-label">Zile consecutive</div>
                         </div>
                     </div>
@@ -83,4 +83,30 @@
         </div>
     </div>
 </div>
+
+{% if current_user.is_authenticated %}
+{% block extra_js %}
+<script>
+async function loadHomeStats() {
+    try {
+        const res = await fetch('/api/progress');
+        const data = await res.json();
+        if (!data.success) return;
+
+        const stats = data.stats || {};
+        
+        document.getElementById('homePoints').textContent = stats.total_points;
+        document.getElementById('homeBadges').textContent = stats.total_badges;
+        document.getElementById('homeStreak').textContent = '0'; // TODO: calculate from submission dates
+        
+    } catch (err) {
+        console.error('Could not load home stats', err);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadHomeStats);
+</script>
+{% endblock %}
+{% endif %}
+
 {% endblock %}
