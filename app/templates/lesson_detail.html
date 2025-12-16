@@ -5,7 +5,6 @@
 {% block content %}
 <div class="lesson-detail-page">
     <div class="container">
-        <!-- Breadcrumb -->
         <div class="breadcrumb">
             <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
             <span>→</span>
@@ -14,7 +13,6 @@
             <span class="current">{{ lesson.title }}</span>
         </div>
 
-        <!-- Header lecție -->
         <div class="lesson-header">
             <div class="lesson-header-left">
                 <span class="lesson-level-badge level-{{ lesson.level }}">
@@ -91,7 +89,6 @@
             </div>
         </div>
 
-        <!-- Conținut lecție -->
         <div class="lesson-content-section">
             <div class="lesson-main-content">
                 <div class="content-card">
@@ -101,7 +98,6 @@
                     </div>
                 </div>
 
-                <!-- Acțiuni -->
                 <div class="lesson-actions">
                     {% if quiz %}
                         {% if submissions %}
@@ -153,21 +149,7 @@
                 </div>
             </div>
 
-            <!-- Sidebar -->
             <div class="lesson-sidebar">
-                <!-- Progress Card -->
-                <div class="sidebar-card">
-                    <h3>🎯 Progresul tău</h3>
-                    <div class="progress-info">
-                        <p>Citești această lecție pentru prima dată!</p>
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: 0%"></div>
-                        </div>
-                        <small>0% completat</small>
-                    </div>
-                </div>
-
-                <!-- Info Card -->
                 <div class="sidebar-card">
                     <h3>ℹ️ Informații</h3>
                     <div class="info-list">
@@ -186,10 +168,20 @@
                     </div>
                 </div>
 
-                <!-- Related Lessons -->
                 <div class="sidebar-card">
                     <h3>📚 Lecții similare</h3>
-                    <p class="text-muted">În curând...</p>
+                    <div class="text-muted">În curând...</div>
+                </div>
+
+                <div class="sidebar-card sticky-progress">
+                    <h3>🎯 Progresul tău</h3>
+                    <div class="progress-info">
+                        <p id="progress-message">Citești această lecție...</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <small id="progress-text">0.0% completat</small>
+                    </div>
                 </div>
             </div>
         </div>
@@ -203,7 +195,6 @@
     padding: 40px 0;
 }
 
-/* Breadcrumb */
 .breadcrumb {
     margin-bottom: 30px;
     font-size: 14px;
@@ -477,6 +468,22 @@
     margin-bottom: 15px;
 }
 
+/* STICKY BOTTOM 
+   Folosim un truc cu 'top' pentru a o ține jos în viewport.
+   100vh (înălțime ecran) - 180px (aproximativ înălțimea cardului + padding).
+*/
+.sticky-progress {
+    position: -webkit-sticky;
+    position: sticky;
+    top: calc(100vh - 180px); 
+    z-index: 10;
+    transition: box-shadow 0.3s ease;
+}
+
+.sticky-progress.scrolled {
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.15); /* Umbră în sus */
+}
+
 .progress-info {
     text-align: center;
 }
@@ -493,7 +500,7 @@
 .progress-fill {
     height: 100%;
     background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-    transition: width 0.3s;
+    transition: width 0.2s ease-out;
 }
 
 .info-list {
@@ -540,6 +547,10 @@
     .lesson-meta-full {
         grid-template-columns: 1fr 1fr;
     }
+
+    .sticky-progress {
+        position: static;
+    }
 }
 
 @media (max-width: 600px) {
@@ -560,30 +571,65 @@
 
 {% block extra_js %}
 <script>
-// function markAsComplete() {
-//     alert('Funcționalitate în dezvoltare! Lecția va fi marcată ca finalizată și vei primi puncte.');
-//     // TODO: Implementare în Sprint 3 cu quiz-uri
-// }
-
 function saveLesson() {
     alert('Lecție salvată! Vei găsi lecțiile salvate în profilul tău.');
     // TODO: Implementare salvare lecții
 }
 
-// Simulare progres de citire
+// Logică completă pentru Progres Bar
 window.addEventListener('scroll', function() {
-    const content = document.querySelector('.lesson-content-text');
-    if (!content) return;
+    // 1. Calculăm progresul
+    const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+    const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
     
-    const contentHeight = content.offsetHeight;
-    const scrolled = window.scrollY;
-    const windowHeight = window.innerHeight;
-    const progress = Math.min((scrolled / (contentHeight - windowHeight)) * 100, 100);
+    let scrolled = 0;
+    if (height > 0) {
+        scrolled = (winScroll / height) * 100;
+    } else {
+        scrolled = 100;
+    }
+
+    if (scrolled > 100) scrolled = 100;
+    if (scrolled < 0) scrolled = 0;
     
+    // 2. Elementele DOM
     const progressBar = document.querySelector('.progress-fill');
-    if (progressBar && progress > 0) {
-        progressBar.style.width = Math.max(progress, 10) + '%';
+    const progressText = document.getElementById('progress-text');
+    const progressMessage = document.getElementById('progress-message');
+    const stickyCard = document.querySelector('.sticky-progress');
+    
+    // 3. Update UI
+    if (progressBar) {
+        progressBar.style.width = scrolled + '%';
+    }
+    
+    if (progressText) {
+        // Floating point (o zecimală)
+        progressText.textContent = scrolled.toFixed(1) + '% completat';
+    }
+
+    if (progressMessage) {
+        if (scrolled >= 99) {
+            progressMessage.textContent = "🎉 Lecție parcursă!";
+            progressMessage.style.fontWeight = "bold";
+            progressMessage.style.color = "var(--primary-color)";
+        } else {
+            progressMessage.textContent = "Citești această lecție...";
+            progressMessage.style.fontWeight = "normal";
+            progressMessage.style.color = "inherit";
+        }
+    }
+
+    // Umbră pentru sticky bottom
+    if (stickyCard) {
+        if (winScroll > 100) {
+            stickyCard.classList.add('scrolled');
+        } else {
+            stickyCard.classList.remove('scrolled');
+        }
     }
 });
+
+window.dispatchEvent(new Event('scroll'));
 </script>
 {% endblock %}
