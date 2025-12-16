@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
 from flask_login import login_user, logout_user, login_required, current_user
 from app.models import db, User, Meeting, Lesson, Quiz, Question, QuizSubmission, Badge, UserBadge, UserProgress
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import re
 import json
 
@@ -737,6 +737,33 @@ def api_get_progress():
         recent_submissions = QuizSubmission.query.filter_by(user_id=current_user.id)\
             .order_by(QuizSubmission.submitted_at.desc())\
             .limit(5).all()
+
+        # Streak (zile consecutive) — considerăm doar quiz-urile promovate ca activitate
+        passed_subs = QuizSubmission.query.filter_by(user_id=current_user.id, passed=True)\
+            .order_by(QuizSubmission.submitted_at.desc()).all()
+
+        passed_dates = set()
+        for s in passed_subs:
+            dt = s.submitted_at
+            if not dt:
+                continue
+            # normalize to UTC date when tz-aware
+            try:
+                if dt.tzinfo is not None:
+                    d = dt.astimezone(timezone.utc).date()
+                else:
+                    d = dt.date()
+            except Exception:
+                d = dt.date()
+            passed_dates.add(d)
+
+        # count consecutive days ending today (UTC)
+        consecutive_days = 0
+        today = datetime.now(timezone.utc).date()
+        cur = today
+        while cur in passed_dates:
+            consecutive_days += 1
+            cur = cur - timedelta(days=1)
         
         return jsonify({
             'success': True,
@@ -746,7 +773,8 @@ def api_get_progress():
                 'completed_lessons': completed_lessons,
                 'in_progress_lessons': in_progress_lessons,
                 'completion_rate': round((completed_lessons / total_lessons * 100), 1) if total_lessons > 0 else 0,
-                'total_badges': len(badges)
+                'total_badges': len(badges),
+                'consecutive_days': consecutive_days
             },
             'progress': [p.to_dict() for p in progress_list],
             'badges': badges,

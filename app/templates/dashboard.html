@@ -54,7 +54,7 @@
             <div class="stat-card">
                 <span class="stat-icon">🔥</span>
                 <div>
-                    <div class="stat-number">0</div>
+                    <div class="stat-number" id="streakDays">0</div>
                     <div class="stat-label">Zile Consecutive</div>
                 </div>
             </div>
@@ -427,6 +427,9 @@ async function loadDashboard() {
 
         const totalBadgesEl = document.getElementById('totalBadges');
         if (totalBadgesEl) totalBadgesEl.textContent = stats.total_badges;
+
+        const streakEl = document.getElementById('streakDays');
+        if (streakEl) streakEl.textContent = (stats.consecutive_days || 0);
 
         const completionRateEl = document.getElementById('completionRate');
         if (completionRateEl) completionRateEl.textContent = (stats.completion_rate || 0) + '%';
