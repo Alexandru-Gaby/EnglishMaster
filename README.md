@@ -158,21 +158,21 @@ Detalii Lecție:
 ✅ Butoane acțiune (Marchează finalizat, Salvează, Înapoi)\
 ✅ Incrementare automată views
 
-###  Sprint 3 - Quizuri & Evaluare:
+### 🎯 Sprint 3 - Quizuri & Evaluare:
  Funcționalități Complete:
 
- Model Quiz complet cu un singur răspuns corect sau întrebări cu adevărat/fals
- Sistem evaluare cu puncte și feedback
- Calculator de progres utilizator
- Statistici detaliate per student
- Dashboard cu overview complet (puncte, lecții, badge-uri, zile consecutive, bazat pe quizuri completate cu 70%)
+ Model Quiz complet cu un singur răspuns corect sau întrebări cu adevărat/fals\
+ Sistem evaluare cu puncte și feedback\
+ Calculator de progres utilizator\
+ Statistici detaliate per student\
+ Dashboard cu overview complet (puncte, lecții, badge-uri, zile consecutive, bazat pe quizuri completate cu 70%)\
  Meetings (întâlniri cu profesorii) - programare și management
 
-###  Sprint 4 - Gamification & Leaderboard:
+### 🎯 Sprint 4 - Gamification & Leaderboard:
  Funcționalități Complete:
 
  **Sistem de Recompense**
-   - Model Reward complet cu status (În așteptare/Revendicat/Expirat), dată câștig și expirare
+   - Model Reward complet cu status (În așteptare/Revendicat/Expirat), dată câștig și expirare\
    - Generare automată de recompense la depășirea punctelor (200, 500, 1000, 2000)
    - Endpoint admin /api/rewards/generate pentru generare batch
    - Revendicare recompense cu feedback vizual
@@ -181,7 +181,7 @@ Detalii Lecție:
    - Clasament global studenți cu paginație
    - Afișare poziția utilizatorului curent
    - Clasament profesori cu:
-     * Calcul scor compus (rating*100 + lecții*10 + vizualizări*0.1)
+     * Calcul scor compus (rating x 100 + lecții x 10 + vizualizări x 0.1)
      * Filtrare pe nivel (Începător/Intermediar/Avansat)
    - Paginație cu butoane Anterior/Următor
    - Statistici detaliate (puncte, lecții completate, rating-uri)
