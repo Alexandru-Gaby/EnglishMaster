@@ -1,0 +1,453 @@
+{% extends "base.html" %}
+
+{% block title %}Recompensele Mele - EnglishMaster{% endblock %}
+
+{% block content %}
+<div class="rewards-page">
+    <div class="container">
+        <div class="page-header">
+            <h1>🎁 Recompensele Tale</h1>
+            <p>Primești recompense pentru punctele acumulate și lecțiile finalizate!</p>
+        </div>
+
+        <div id="message-container" class="message-container" style="display: none;"></div>
+
+        <div class="rewards-stats">
+            <div class="stat-card">
+                <span class="stat-icon">🎁</span>
+                <div>
+                    <div class="stat-number" id="totalRewards">{{ rewards|length }}</div>
+                    <div class="stat-label">Recompense Totale</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-icon">⏳</span>
+                <div>
+                    <div class="stat-number" id="pendingRewards">
+                        {{ rewards|selectattr('status', 'equalto', 'pending')|list|length }}
+                    </div>
+                    <div class="stat-label">De Revendicat</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-icon">✅</span>
+                <div>
+                    <div class="stat-number" id="claimedRewards">
+                        {{ rewards|selectattr('status', 'equalto', 'claimed')|list|length }}
+                    </div>
+                    <div class="stat-label">Revendicate</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <h3>📋 Cum primești recompense?</h3>
+            <ul>
+                <li><strong>200 puncte:</strong> Primești +50 puncte bonus</li>
+                <li><strong>500 puncte:</strong> Primești +100 puncte bonus</li>
+                <li><strong>1000 puncte:</strong> Primești +200 puncte bonus</li>
+                <li><strong>2000 puncte:</strong> Primești +500 puncte bonus</li>
+                <li><strong>5 lecții completate:</strong> Primești 1 feedback gratuit de la un profesor</li>
+            </ul>
+            <p class="info-note">💡 Recompensele expiră după 30-60 zile. Revendică-le la timp!</p>
+        </div>
+
+        {% if rewards %}
+        <div class="rewards-section">
+            <h2>Toate Recompensele</h2>
+            
+            <div class="rewards-grid">
+                {% for reward in rewards %}
+                <div class="reward-card status-{{ reward.status }} {% if reward.is_expired() %}expired{% endif %}">
+                    <div class="reward-icon">
+                        {% if reward.reward_type == 'bonus_points' %}
+                            ⭐
+                        {% elif reward.reward_type == 'free_feedback' %}
+                            👨‍🏫
+                        {% elif reward.reward_type == 'premium_trial' %}
+                            💎
+                        {% else %}
+                            🎁
+                        {% endif %}
+                    </div>
+                    
+                    <div class="reward-content">
+                        <h3>{{ reward.description }}</h3>
+                        
+                        <div class="reward-details">
+                            {% if reward.reward_type == 'bonus_points' %}
+                                <p class="reward-value">+{{ reward.value }} puncte bonus</p>
+                            {% elif reward.reward_type == 'free_feedback' %}
+                                <p class="reward-value">{{ reward.value }} feedback gratuit</p>
+                            {% elif reward.reward_type == 'premium_trial' %}
+                                <p class="reward-value">{{ reward.value }} zile Premium</p>
+                            {% endif %}
+                            
+                            <p class="reward-date">
+                                <strong>Câștigat:</strong> {{ reward.earned_at.strftime('%d %B %Y') }}
+                            </p>
+                            
+                            {% if reward.status == 'pending' and not reward.is_expired() %}
+                                <p class="reward-expires">
+                                    <strong>Expiră:</strong> {{ reward.expires_at.strftime('%d %B %Y') if reward.expires_at else 'Niciodată' }}
+                                </p>
+                            {% elif reward.status == 'claimed' %}
+                                <p class="reward-claimed">
+                                    <strong>Revendicat:</strong> {{ reward.claimed_at.strftime('%d %B %Y') }}
+                                </p>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="reward-status-badge status-{{ reward.status }}">
+                            {% if reward.is_expired() %}
+                                ⏰ Expirat
+                            {% elif reward.status == 'pending' %}
+                                ⏳ De revendicat
+                            {% elif reward.status == 'claimed' %}
+                                ✅ Revendicat
+                            {% else %}
+                                {{ reward.status }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="reward-actions">
+                        {% if reward.status == 'pending' and not reward.is_expired() %}
+                            <button class="btn btn-success btn-claim" onclick="claimReward('{{ reward.id }}')">
+                                🎁 Revendică Acum
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <span class="empty-icon">🎁</span>
+            <h3>Nicio recompensă încă</h3>
+            <p>Continuă să acumulezi puncte și să finalizezi lecții pentru a primi recompense!</p>
+            <a href="{{ url_for('main.lessons_page') }}" class="btn btn-primary">
+                📚 Vezi Lecțiile
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.rewards-page {
+    padding: 40px 0;
+    background: var(--bg-light);
+    min-height: calc(100vh - 150px);
+}
+
+.page-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.page-header h1 {
+    font-size: 36px;
+    margin-bottom: 10px;
+}
+
+.page-header p {
+    color: var(--text-light);
+    font-size: 18px;
+}
+
+/* Stats */
+.rewards-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.stat-icon {
+    font-size: 40px;
+}
+
+.stat-number {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.stat-label {
+    font-size: 14px;
+    color: var(--text-light);
+}
+
+/* Info Box */
+.info-box {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 30px;
+    border-radius: 12px;
+    margin-bottom: 40px;
+}
+
+.info-box h3 {
+    margin-bottom: 20px;
+    font-size: 22px;
+}
+
+.info-box ul {
+    margin: 0 0 20px 0;
+    padding-left: 25px;
+}
+
+.info-box li {
+    margin-bottom: 10px;
+    line-height: 1.6;
+}
+
+.info-note {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 15px;
+    border-radius: 8px;
+    margin: 0;
+}
+
+.rewards-section {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.rewards-section h2 {
+    margin-bottom: 25px;
+}
+
+.rewards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 25px;
+}
+
+.reward-card {
+    background: white;
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 25px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    transition: all 0.3s;
+}
+
+.reward-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-lg);
+}
+
+.reward-card.status-pending {
+    border-color: #F39C12;
+    background: linear-gradient(135deg, #FFF9E6, #FFFFFF);
+}
+
+.reward-card.status-claimed {
+    border-color: #2ECC71;
+    background: linear-gradient(135deg, #E8F8F5, #FFFFFF);
+}
+
+.reward-card.expired {
+    border-color: #95A5A6;
+    background: linear-gradient(135deg, #F5F5F5, #FFFFFF);
+    opacity: 0.7;
+}
+
+.reward-icon {
+    font-size: 64px;
+    text-align: center;
+}
+
+.reward-content h3 {
+    font-size: 20px;
+    margin-bottom: 15px;
+    color: var(--text-dark);
+}
+
+.reward-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+.reward-details p {
+    margin: 8px 0;
+    font-size: 14px;
+    color: var(--text-light);
+}
+
+.reward-status-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 10px;
+}
+
+.reward-status-badge.status-pending {
+    background: #FFF3CD;
+    color: #856404;
+}
+
+.reward-status-badge.status-claimed {
+    background: #D4EDDA;
+    color: #155724;
+}
+
+.reward-status-badge.status-expired {
+    background: #E2E3E5;
+    color: #383D41;
+}
+
+.btn-claim {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+}
+
+.btn-claim:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 80px 20px;
+}
+
+.empty-icon {
+    font-size: 80px;
+    display: block;
+    margin-bottom: 20px;
+}
+
+.empty-state h3 {
+    font-size: 24px;
+    margin-bottom: 10px;
+}
+
+.empty-state p {
+    color: var(--text-light);
+    margin-bottom: 20px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .rewards-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.message-container {
+    margin: 0 0 20px 0;
+}
+
+.message {
+    padding: 15px 20px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 600;
+}
+
+.message-success {
+    background: #D4EDDA;
+    color: #155724;
+    border: 1px solid #C3E6CB;
+}
+
+.message-error {
+    background: #F8D7DA;
+    color: #721C24;
+    border: 1px solid #F5C6CB;
+}
+
+.message-icon {
+    font-size: 20px;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showMessage(message, type) {
+    const container = document.getElementById('message-container');
+    const icon = type === 'success' ? '✅' : '❌';
+    const messageClass = type === 'success' ? 'message-success' : 'message-error';
+    
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'message ' + messageClass;
+    msgDiv.innerHTML = '<span class="message-icon">' + icon + '</span><span>' + message + '</span>';
+    
+    container.innerHTML = '';
+    container.appendChild(msgDiv);
+    container.style.display = 'block';
+    container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    
+    setTimeout(function() {
+        container.style.display = 'none';
+    }, 5000);
+}
+
+function claimReward(rewardId) {
+    const button = event.target;
+    const originalText = button.textContent;
+    
+    button.disabled = true;
+    button.textContent = '⏳ Se revendică...';
+    
+    fetch('/api/rewards/' + rewardId + '/claim', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage(data.message, 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showMessage(data.error, 'error');
+            button.disabled = false;
+            button.textContent = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error claiming reward:', error);
+        showMessage('Nu s-a putut revendica recompensa.', 'error');
+        button.disabled = false;
+        button.textContent = originalText;
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Rewards page initialized');
+});
+</script>
+{% endblock %}

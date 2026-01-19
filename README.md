@@ -104,7 +104,7 @@ Aplicația va fi disponibilă la: http://localhost:5000\
 | `status`           | `ENUM('pending', 'confirmed', 'rejected', 'completed', 'cancelled')` | Statusul întâlnirii           |
 | `student_message`  | `TEXT`          | Mesajul trimis de student (poate fi nul)                        |
 | `professor_response`| `TEXT`         | Răspunsul trimis de profesor (poate fi nul)                      |
-| `points_cost`      | `INT`           | Punctele consumate pentru întâlnire (implicit 100 puncte)        |
+| `points_cost`      | `INT`           | Punctele consumate pentru întâlnire (implicit 500 puncte)        |
 | `created_at`       | `DATETIME`      | Data și ora când a fost creată întâlnirea (implicit `CURRENT_TIMESTAMP`) |
 | `updated_at`       | `DATETIME`      | Data și ora ultimei actualizări (actualizat automat)            |
 
@@ -157,3 +157,31 @@ Detalii Lecție:
 ✅ Progress bar citire (se umple la scroll)\
 ✅ Butoane acțiune (Marchează finalizat, Salvează, Înapoi)\
 ✅ Incrementare automată views
+
+###  Sprint 3 - Quizuri & Evaluare:
+ Funcționalități Complete:
+
+ Model Quiz complet cu un singur răspuns corect sau întrebări cu adevărat/fals
+ Sistem evaluare cu puncte și feedback
+ Calculator de progres utilizator
+ Statistici detaliate per student
+ Dashboard cu overview complet (puncte, lecții, badge-uri, zile consecutive, bazat pe quizuri completate cu 70%)
+ Meetings (întâlniri cu profesorii) - programare și management
+
+###  Sprint 4 - Gamification & Leaderboard:
+ Funcționalități Complete:
+
+ **Sistem de Recompense**
+   - Model Reward complet cu status (În așteptare/Revendicat/Expirat), dată câștig și expirare
+   - Generare automată de recompense la depășirea punctelor (200, 500, 1000, 2000)
+   - Endpoint admin /api/rewards/generate pentru generare batch
+   - Revendicare recompense cu feedback vizual
+
+ **Clasamente (Leaderboard)**
+   - Clasament global studenți cu paginație
+   - Afișare poziția utilizatorului curent
+   - Clasament profesori cu:
+     * Calcul scor compus (rating*100 + lecții*10 + vizualizări*0.1)
+     * Filtrare pe nivel (Începător/Intermediar/Avansat)
+   - Paginație cu butoane Anterior/Următor
+   - Statistici detaliate (puncte, lecții completate, rating-uri)

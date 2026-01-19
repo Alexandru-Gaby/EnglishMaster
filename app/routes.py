@@ -1,7 +1,8 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
 from flask_login import login_user, logout_user, login_required, current_user
-from app.models import db, User, Meeting, Lesson, Quiz, Question, QuizSubmission, Badge, UserBadge, UserProgress
+from app.models import db, User, Meeting, Lesson, Quiz, Question, QuizSubmission, Badge, UserBadge, UserProgress, Reward
 from datetime import datetime, timezone, timedelta
+from sqlalchemy import func, desc
 import re
 import json
 
@@ -191,6 +192,8 @@ def quiz_results(quiz_id, submission_id):
     new_badges = []
     if submission.passed:
         new_badges = check_and_award_badges(current_user)
+        # Verifică și acordă recompense
+        check_and_award_rewards(current_user)
     
     return render_template('quiz_results.html',
                          submission=submission,
@@ -199,6 +202,21 @@ def quiz_results(quiz_id, submission_id):
                          questions=questions,
                          user_answers=user_answers,
                          new_badges=new_badges)
+
+@main.route('/leaderboard')
+@login_required
+def leaderboard_page():
+    """Pagina cu clasamentele"""
+    return render_template('leaderboard.html')
+
+@main.route('/rewards')
+@login_required
+def rewards_page():
+    """Pagina cu recompensele utilizatorului"""
+    rewards = Reward.query.filter_by(user_id=current_user.id)\
+        .order_by(Reward.earned_at.desc()).all()
+    
+    return render_template('rewards.html', rewards=rewards)
 
 @main.route('/logout')
 @login_required
@@ -352,6 +370,7 @@ def api_create_meeting():
         except ValueError:
             return jsonify({'success': False, 'error': 'Format de dată invalid!'}), 400
         
+        # Verifică că data este în viitor
         if meeting_date <= datetime.now():
             return jsonify({'success': False, 'error': 'Data întâlnirii trebuie să fie în viitor!'}), 400
         
@@ -473,26 +492,18 @@ def api_cancel_meeting(meeting_id):
         # păstrează statusul anterior pentru a decide dacă returnăm punctele
         previous_status = meeting.status
         meeting.status = 'cancelled'
-
-        remaining_points = None
-        # Returnează punctele doar dacă întâlnirea era pending sau confirmed
-        if previous_status in ['pending', 'confirmed']:
+        
+        # Returnează punctele dacă e anulată de student sau profesor
+        if meeting.status == 'pending' or meeting.status == 'confirmed':
             student = User.query.get(meeting.student_id)
-            if student:
-                student.points += meeting.points_cost
-                remaining_points = student.points
-
+            student.points += meeting.points_cost
+        
         db.session.commit()
-
-        message = 'Întâlnire anulată cu succes.'
-        if remaining_points is not None:
-            message += ' Punctele au fost returnate.'
-
+        
         return jsonify({
             'success': True,
-            'message': message,
-            'meeting': meeting.to_dict(),
-            'remaining_points': remaining_points
+            'message': 'Întâlnire anulată cu succes! Punctele au fost returnate.',
+            'meeting': meeting.to_dict()
         }), 200
         
     except Exception as e:
@@ -841,3 +852,280 @@ def check_and_award_badges(user):
         db.session.commit()
     
     return new_badges
+
+# ==================== API ENDPOINTS - CLASAMENTE ====================
+
+@main.route('/api/leaderboard/global', methods=['GET'])
+@login_required
+def api_global_leaderboard():
+    """Clasament global utilizatori după puncte"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 100, type=int)
+        
+        # Query pentru utilizatori (exclude admin și profesori dacă vrei)
+        query = User.query.filter_by(role='user')\
+            .order_by(User.points.desc())
+        
+        # Paginare
+        total = query.count()
+        users = query.limit(per_page).offset((page - 1) * per_page).all()
+        
+        # Găsește poziția utilizatorului curent
+        current_user_rank = None
+        if current_user.role == 'user':
+            users_above = User.query.filter(
+                User.role == 'user',
+                User.points > current_user.points
+            ).count()
+            current_user_rank = users_above + 1
+        
+        leaderboard = []
+        for idx, user in enumerate(users, start=(page - 1) * per_page + 1):
+            # Calculează lecții completate
+            completed_lessons = UserProgress.query.filter_by(
+                user_id=user.id,
+                status='completed'
+            ).count()
+            
+            leaderboard.append({
+                'rank': idx,
+                'user_id': user.id,
+                'name': user.get_full_name(),
+                'points': user.points,
+                'lessons_completed': completed_lessons,
+                'is_current_user': user.id == current_user.id
+            })
+        
+        return jsonify({
+            'success': True,
+            'leaderboard': leaderboard,
+            'current_user_rank': current_user_rank,
+            'total_users': total,
+            'page': page,
+            'per_page': per_page
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare la obținerea clasamentului: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+@main.route('/api/leaderboard/professors', methods=['GET'])
+@login_required
+def api_professors_leaderboard():
+    """Clasament profesori după rating și lecții create"""
+    try:
+        level = request.args.get('level', 'all')  # all, beginner, intermediate, advanced
+        
+        # Query de bază
+        query = User.query.filter_by(role='professor', is_available=True)
+        
+        # Calculează scorul pentru fiecare profesor
+        professors_data = []
+        for professor in query.all():
+            # Filtrează lecții după nivel dacă e necesar
+            lessons_query = Lesson.query.filter_by(professor_id=professor.id, status='published')
+            if level != 'all':
+                lessons_query = lessons_query.filter_by(level=level)
+            
+            lessons = lessons_query.all()
+            total_lessons = len(lessons)
+            
+            # Calculează rating mediu din lecții
+            total_rating = sum(l.rating for l in lessons)
+            avg_rating = (total_rating / total_lessons) if total_lessons > 0 else 0
+            
+            # Calculează views totale
+            total_views = sum(l.views for l in lessons)
+            
+            # Scor compus: rating * 100 + lecții * 10 + views
+            score = (avg_rating * 100) + (total_lessons * 10) + (total_views * 0.1)
+            
+            professors_data.append({
+                'professor_id': professor.id,
+                'name': professor.get_full_name(),
+                'specialization': professor.specialization,
+                'rating': round(professor.rating, 2),
+                'total_reviews': professor.total_reviews,
+                'total_lessons': total_lessons,
+                'total_views': total_views,
+                'avg_lesson_rating': round(avg_rating, 2),
+                'score': round(score, 2)
+            })
+        
+        # Sortează după scor
+        professors_data.sort(key=lambda x: x['score'], reverse=True)
+        
+        # Adaugă rang
+        for idx, prof in enumerate(professors_data, start=1):
+            prof['rank'] = idx
+        
+        return jsonify({
+            'success': True,
+            'leaderboard': professors_data,
+            'level': level,
+            'total_professors': len(professors_data)
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare la clasamentul profesorilor: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+# ==================== API ENDPOINTS - RECOMPENSE ====================
+
+@main.route('/api/rewards', methods=['GET'])
+@login_required
+def api_get_rewards():
+    """Obține toate recompensele utilizatorului"""
+    try:
+        rewards = Reward.query.filter_by(user_id=current_user.id)\
+            .order_by(Reward.earned_at.desc()).all()
+        
+        return jsonify({
+            'success': True,
+            'rewards': [r.to_dict() for r in rewards],
+            'total': len(rewards),
+            'pending': len([r for r in rewards if r.status == 'pending' and not r.is_expired()])
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare la obținerea recompenselor: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/rewards/generate', methods=['POST'])
+@login_required
+def api_generate_rewards():
+    """Generează recompense pentru toți utilizatorii (admin only).
+    Poate fi folosit ca job periodic sau endpoint manual pentru testare."""
+    try:
+        if current_user.role != 'admin':
+            return jsonify({'success': False, 'error': 'Doar adminii pot genera recompense.'}), 403
+
+        users = User.query.filter_by(role='user').all()
+        total_new = 0
+        details = []
+        for u in users:
+            before = len(Reward.query.filter_by(user_id=u.id).all())
+            new = check_and_award_rewards(u)
+            after = len(Reward.query.filter_by(user_id=u.id).all())
+            created = after - before
+            total_new += created
+            if created > 0:
+                details.append({'user_id': u.id, 'created': created})
+
+        return jsonify({'success': True, 'message': 'Generare recompense finalizată.', 'total_created': total_new, 'details': details}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare la generarea recompenselor: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare la generarea recompenselor.'}), 500
+
+@main.route('/api/rewards/<int:reward_id>/claim', methods=['POST'])
+@login_required
+def api_claim_reward(reward_id):
+    """Revendică o recompensă"""
+    try:
+        reward = Reward.query.get(reward_id)
+        
+        if not reward:
+            return jsonify({'success': False, 'error': 'Recompensă inexistentă!'}), 404
+        
+        if reward.user_id != current_user.id:
+            return jsonify({'success': False, 'error': 'Nu ai permisiunea!'}), 403
+        
+        if reward.status != 'pending':
+            return jsonify({'success': False, 'error': 'Recompensa a fost deja revendicată sau a expirat!'}), 400
+        
+        if reward.is_expired():
+            reward.status = 'expired'
+            db.session.commit()
+            return jsonify({'success': False, 'error': 'Recompensa a expirat!'}), 400
+        
+        # Revendică recompensa
+        if reward.claim():
+            # Aplică recompensa
+            if reward.reward_type == 'bonus_points':
+                current_user.points += reward.value
+            elif reward.reward_type == 'premium_trial':
+                current_user.premium = True
+                # TODO: Setează data expirării trial-ului
+            
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Recompensă revendicată cu succes!',
+                'reward': reward.to_dict(),
+                'new_points': current_user.points
+            }), 200
+        else:
+            return jsonify({'success': False, 'error': 'Nu s-a putut revendica recompensa!'}), 400
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare la revendicare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+# Funcție helper pentru verificare și acordare recompense
+def check_and_award_rewards(user):
+    """Verifică și acordă recompense bazate pe puncte"""
+    new_rewards = []
+    
+    # Recompense pentru anumite praguri de puncte
+    reward_tiers = [
+        {'points': 200, 'bonus': 50, 'description': 'Bonus pentru 200 puncte!'},
+        {'points': 500, 'bonus': 100, 'description': 'Bonus pentru 500 puncte!'},
+        {'points': 1000, 'bonus': 200, 'description': 'Bonus pentru 1000 puncte!'},
+        {'points': 2000, 'bonus': 500, 'description': 'Bonus masiv pentru 2000 puncte!'}
+    ]
+    
+    for tier in reward_tiers:
+        # Verifică dacă utilizatorul a atins pragul
+        if user.points >= tier['points']:
+            # Verifică dacă nu a primit deja această recompensă
+            existing = Reward.query.filter_by(
+                user_id=user.id,
+                reward_type='bonus_points',
+                value=tier['bonus']
+            ).first()
+            
+            if not existing:
+                reward = Reward(
+                    user_id=user.id,
+                    reward_type='bonus_points',
+                    value=tier['bonus'],
+                    description=tier['description'],
+                    expires_at=datetime.utcnow() + timedelta(days=30)
+                )
+                db.session.add(reward)
+                new_rewards.append(reward)
+    
+    # Recompensă pentru 5 lecții completate
+    completed_count = UserProgress.query.filter_by(
+        user_id=user.id,
+        status='completed'
+    ).count()
+    
+    if completed_count >= 5:
+        existing = Reward.query.filter_by(
+            user_id=user.id,
+            reward_type='free_feedback',
+            description='Feedback gratuit pentru 5 lecții completate!'
+        ).first()
+        
+        if not existing:
+            reward = Reward(
+                user_id=user.id,
+                reward_type='free_feedback',
+                value=1,
+                description='Feedback gratuit pentru 5 lecții completate!',
+                expires_at=datetime.utcnow() + timedelta(days=60)
+            )
+            db.session.add(reward)
+            new_rewards.append(reward)
+    
+    if new_rewards:
+        db.session.commit()
+    
+    return new_rewards

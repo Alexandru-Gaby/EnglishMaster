@@ -495,3 +495,66 @@ class UserProgress(db.Model):
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
             'last_accessed': self.last_accessed.isoformat()
         }
+
+class Reward(db.Model):
+    __tablename__ = 'rewards'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Utilizatorul care primește recompensa
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    # Tip recompensă: bonus_points, free_feedback, premium_trial
+    reward_type = db.Column(db.Enum('bonus_points', 'free_feedback', 'premium_trial'), nullable=False)
+    
+    # Valoare (ex: număr puncte bonus)
+    value = db.Column(db.Integer, default=0)
+    
+    # Descriere
+    description = db.Column(db.Text, nullable=False)
+    
+    # Status: pending, claimed, expired
+    status = db.Column(db.Enum('pending', 'claimed', 'expired'), default='pending')
+    
+    # Când a fost câștigată
+    earned_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Când a fost revendicată
+    claimed_at = db.Column(db.DateTime, nullable=True)
+    
+    # Data expirării
+    expires_at = db.Column(db.DateTime, nullable=True)
+    
+    # Relație
+    user = db.relationship('User', backref='rewards')
+    
+    def __repr__(self):
+        return f'<Reward {self.reward_type} for user {self.user_id}>'
+    
+    def is_expired(self):
+        """Verifică dacă recompensa a expirat"""
+        if self.expires_at and datetime.utcnow() > self.expires_at:
+            return True
+        return False
+    
+    def claim(self):
+        """Revendică recompensa"""
+        if self.status == 'pending' and not self.is_expired():
+            self.status = 'claimed'
+            self.claimed_at = datetime.utcnow()
+            return True
+        return False
+    
+    def to_dict(self):
+        """Convertește la dicționar"""
+        return {
+            'id': self.id,
+            'reward_type': self.reward_type,
+            'value': self.value,
+            'description': self.description,
+            'status': self.status,
+            'earned_at': self.earned_at.isoformat(),
+            'claimed_at': self.claimed_at.isoformat() if self.claimed_at else None,
+            'expires_at': self.expires_at.isoformat() if self.expires_at else None,
+            'is_expired': self.is_expired()
+        }
