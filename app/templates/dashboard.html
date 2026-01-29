@@ -86,113 +86,58 @@
                 </div>
             </div>
         </div>
-
-        <!-- Recent Activity -->
-        <div class="recent-activity">
-            <h2>📋 Activitate Recentă</h2>
-            <div id="recentActivity" class="activity-list">
-                <p class="text-muted">Se încarcă...</p>
-            </div>
-        </div>
-
-        <!-- Badges Section -->
-        <div class="badges-section">
-            <div class="section-header">
-                <h2>🏆 Badge-urile Tale</h2>
-            </div>
-            <div id="badgesContainer" class="badges-container">
-                <p class="text-muted">Se încarcă...</p>
-            </div>
-        </div>
         {% endif %}
 
         <!-- Acțiuni rapide -->
         <div class="quick-actions">
-            <h2>Acțiuni Rapide</h2>
+            <h2>⚡ Acțiuni Rapide</h2>
             <div class="actions-grid">
                 {% if current_user.role == 'user' %}
-                    <a href="{{ url_for('main.lessons_page') }}" class="action-card">
-                        <span class="action-icon">📖</span>
-                        <h3>Lecții</h3>
-                        <p>Continuă învățarea</p>
-                    </a>
-                    <a href="{{ url_for('main.professors_page') }}" class="action-card action-highlight">
-                        <span class="action-icon">👨‍🏫</span>
-                        <h3>Programează Feedback</h3>
-                        <p>
-                            {% if current_user.can_request_feedback() %}
-                                Ai {{ current_user.points }} puncte!
-                            {% else %}
-                                Necesită 500 puncte
-                            {% endif %}
-                        </p>
-                    </a>
-                    <a href="{{ url_for('main.meetings_page') }}" class="action-card">
-                        <span class="action-icon">📅</span>
-                        <h3>Întâlnirile Mele</h3>
-                        <p>Vezi programul</p>
-                    </a>
-                    <a href="#" class="action-card">
-                        <span class="action-icon">📊</span>
-                        <h3>Clasament</h3>
-                        <p>Vezi poziția ta</p>
-                    </a>
+                <a href="{{ url_for('main.lessons_page') }}" class="action-card">
+                    <span class="action-icon">📖</span>
+                    <h3>Lecții</h3>
+                    <p>Continuă învățarea</p>
+                </a>
+                <a href="{{ url_for('main.my_classes') }}" class="action-card">
+                    <span class="action-icon">📚</span>
+                    <h3>Clasele Mele</h3>
+                    <p>Accesează clase</p>
+                </a>
+                <a href="{{ url_for('main.professors_page') }}" class="action-card action-highlight">
+                    <span class="action-icon">👨‍🏫</span>
+                    <h3>Feedback</h3>
+                    <p>
+                        {% if current_user.can_request_feedback() %}
+                            Ai {{ current_user.points }} puncte!
+                        {% else %}
+                            Necesită 500 puncte
+                        {% endif %}
+                    </p>
+                </a>
+                <a href="{{ url_for('main.leaderboard_page') }}" class="action-card">
+                    <span class="action-icon">📊</span>
+                    <h3>Clasament</h3>
+                    <p>Vezi poziția ta</p>
+                </a>
                 {% else %}
-                    <a href="{{ url_for('main.meetings_page') }}" class="action-card action-highlight">
-                        <span class="action-icon">📅</span>
-                        <h3>Cereri de Întâlniri</h3>
-                        <p>Gestionează programul</p>
-                    </a>
-                    <a href="{{ url_for('main.my_lessons') }}" class="action-card">
-                        <span class="action-icon">📝</span>
-                        <h3>Lecțiile Mele</h3>
-                        <p>Creează conținut</p>
-                    </a>
-                    <a href="#" class="action-card">
-                        <span class="action-icon">👥</span>
-                        <h3>Clasele Mele</h3>
-                        <p>Monitorizează studenți</p>
-                    </a>
+                <a href="{{ url_for('main.professor_dashboard') }}" class="action-card action-highlight">
+                    <span class="action-icon">👥</span>
+                    <h3>Panou Profesor</h3>
+                    <p>Gestionează clase</p>
+                </a>
+                <a href="{{ url_for('main.my_lessons') }}" class="action-card">
+                    <span class="action-icon">📝</span>
+                    <h3>Lecțiile Mele</h3>
+                    <p>Creează conținut</p>
+                </a>
+                <a href="{{ url_for('main.meetings_page') }}" class="action-card">
+                    <span class="action-icon">📅</span>
+                    <h3>Întâlnirile Mele</h3>
+                    <p>Gestionează program</p>
+                </a>
                 {% endif %}
             </div>
         </div>
-
-        <!-- Întâlniri recente -->
-        {% if meetings %}
-        <div class="recent-meetings">
-            <div class="section-header">
-                <h2>Întâlniri Recente</h2>
-                <a href="{{ url_for('main.meetings_page') }}" class="link-button">Vezi toate →</a>
-            </div>
-            <div class="meetings-list">
-                {% for meeting in meetings[:3] %}
-                <div class="meeting-card status-{{ meeting.status }}">
-                    <div class="meeting-header">
-                        <div>
-                            {% if current_user.role == 'professor' %}
-                                <h3>{{ meeting.student.get_full_name() }}</h3>
-                                <p class="meeting-email">{{ meeting.student.email }}</p>
-                            {% else %}
-                                <h3>{{ meeting.professor.get_full_name() }}</h3>
-                                <p class="meeting-spec">{{ meeting.professor.specialization }}</p>
-                            {% endif %}
-                        </div>
-                        <span class="status-badge status-{{ meeting.status }}">
-                            {{ meeting.status|upper }}
-                        </span>
-                    </div>
-                    <div class="meeting-details">
-                        <p><strong>📅 Data:</strong> {{ meeting.meeting_date.strftime('%d.%m.%Y %H:%M') }}</p>
-                        <p><strong>⏱️ Durată:</strong> {{ meeting.duration_minutes }} minute</p>
-                        {% if meeting.student_message %}
-                        <p><strong>💬 Mesaj:</strong> {{ meeting.student_message }}</p>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}

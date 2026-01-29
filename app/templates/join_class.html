@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+
+{% block title %}Alătură-te unei Clase - EnglishMaster{% endblock %}
+
+{% block content %}
+<div class="join-class-page">
+    <div class="container">
+        <div class="join-container">
+            <div class="join-header">
+                <h1>📚 Alătură-te unei Clase</h1>
+                <p>Intră la o clasă cu profesorul tău folosind codul de acces</p>
+            </div>
+
+            <div class="join-form-wrapper">
+                <form id="joinClassForm">
+                    <div class="form-group">
+                        <label for="classCode">Cod Clasă:</label>
+                        <input 
+                            type="text" 
+                            id="classCode" 
+                            name="classCode" 
+                            placeholder="Ex: MATH2024A" 
+                            required
+                            autocomplete="off"
+                        >
+                        <p class="hint">Cere codul de la profesorul tău</p>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-large">
+                        ✅ Alătură-te la Clasă
+                    </button>
+                </form>
+
+                <div id="messageContainer" class="message" style="display: none;"></div>
+            </div>
+
+            <div class="info-box">
+                <h3>❓ Cum funcționează?</h3>
+                <ol>
+                    <li><strong>Obține codul:</strong> Profesorul ți-l va da în clasă sau pe email</li>
+                    <li><strong>Intră codul:</strong> Paste-ază codul de 8 caractere mai sus</li>
+                    <li><strong>Alătură-te:</strong> Click pe butonul "Alătură-te la Clasă"</li>
+                    <li><strong>Gata!</strong> Vei vedea materialul și feedback-ul profesorului</li>
+                </ol>
+            </div>
+
+            <div class="classes-list">
+                <h3>📋 Clasele Tale</h3>
+                <div id="myClasses">
+                    <p>Se încarcă...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.join-class-page {
+    min-height: calc(100vh - 150px);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 60px 0;
+    display: flex;
+    align-items: center;
+}
+
+.join-container {
+    max-width: 500px;
+}
+
+.join-header {
+    text-align: center;
+    color: white;
+    margin-bottom: 40px;
+}
+
+.join-header h1 {
+    font-size: 36px;
+    margin: 0 0 10px 0;
+}
+
+.join-header p {
+    font-size: 18px;
+    opacity: 0.9;
+    margin: 0;
+}
+
+.join-form-wrapper {
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    margin-bottom: 30px;
+}
+
+.form-group {
+    margin-bottom: 25px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text-dark);
+    font-size: 16px;
+}
+
+.form-group input[type="text"] {
+    width: 100%;
+    padding: 14px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 16px;
+    transition: border-color 0.3s;
+}
+
+.form-group input[type="text"]:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group input[type="text"]::placeholder {
+    color: var(--text-light);
+}
+
+.hint {
+    margin: 8px 0 0 0;
+    color: var(--text-light);
+    font-size: 13px;
+}
+
+.btn-large {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.message {
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 20px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.message.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.message.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.info-box {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    box-shadow: var(--shadow);
+}
+
+.info-box h3 {
+    margin-top: 0;
+    color: var(--primary-color);
+}
+
+.info-box ol {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.info-box li {
+    margin-bottom: 12px;
+    line-height: 1.6;
+}
+
+.classes-list {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.classes-list h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: var(--text-dark);
+}
+
+.class-item {
+    background: var(--bg-light);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 4px solid var(--primary-color);
+}
+
+.class-info h4 {
+    margin: 0 0 5px 0;
+    color: var(--text-dark);
+}
+
+.class-info p {
+    margin: 0;
+    color: var(--text-light);
+    font-size: 13px;
+}
+
+.class-action {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-sm {
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+.empty-message {
+    text-align: center;
+    color: var(--text-light);
+    padding: 20px;
+}
+
+@media (max-width: 600px) {
+    .join-class-page {
+        padding: 20px 0;
+    }
+
+    .join-header {
+        margin-bottom: 20px;
+    }
+
+    .join-header h1 {
+        font-size: 28px;
+    }
+
+    .join-form-wrapper {
+        padding: 25px;
+    }
+
+    .class-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .class-action {
+        width: 100%;
+        margin-top: 10px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('joinClassForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const code = document.getElementById('classCode').value.trim().toUpperCase();
+    const messageContainer = document.getElementById('messageContainer');
+    
+    if (!code) {
+        showMessage('Te rog introduce codul clasă!', 'error');
+        return;
+    }
+    
+    console.log('Searching for class with code:', code);
+    
+    // Caută clasa după cod folosind ruta de search
+    fetch('/api/classes?code=' + encodeURIComponent(code))
+        .then(res => res.json())
+        .then(data => {
+            console.log('Search response:', data);
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Cod invalid!');
+            }
+            
+            const foundClass = data.class;
+            console.log('Found class:', foundClass);
+            
+            if (!foundClass) {
+                throw new Error('Cod invalid! Nu s-a găsit nicio clasă cu acest cod.');
+            }
+            
+            // Se alătură la clasă
+            return fetch(`/api/classes/${foundClass.id}/join`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: code })
+            });
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showMessage('✅ ' + data.message, 'success');
+                setTimeout(() => {
+                    window.location.href = '/class/' + data.class.id;
+                }, 1500);
+            } else {
+                showMessage('❌ ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showMessage('❌ ' + error.message, 'error');
+        });
+});
+
+function showMessage(message, type) {
+    const container = document.getElementById('messageContainer');
+    container.textContent = message;
+    container.className = 'message ' + type;
+    container.style.display = 'block';
+}
+
+// Load my classes
+function loadMyClasses() {
+    fetch('/api/classes')
+        .then(res => res.json())
+        .then(data => {
+            const container = document.getElementById('myClasses');
+            
+            if (!data.success || !data.classes || data.classes.length === 0) {
+                container.innerHTML = '<p class="empty-message">Niciun clasă încă. Adaugă codul unei clase!</p>';
+                return;
+            }
+            
+            container.innerHTML = '';
+            data.classes.forEach(cls => {
+                const item = document.createElement('div');
+                item.className = 'class-item';
+                item.innerHTML = `
+                    <div class="class-info">
+                        <h4>${cls.name}</h4>
+                        <p>👨‍🏫 ${cls.professor_name}</p>
+                        <p>👥 ${cls.student_count} studenți</p>
+                    </div>
+                    <div class="class-action">
+                        <a href="/class/${cls.id}" class="btn btn-sm btn-primary">📖 Intră</a>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        });
+}
+
+document.addEventListener('DOMContentLoaded', loadMyClasses);
+</script>
+{% endblock %}

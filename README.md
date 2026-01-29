@@ -185,3 +185,29 @@ Detalii Lecție:
      * Filtrare pe nivel (Începător/Intermediar/Avansat)
    - Paginație cu butoane Anterior/Următor
    - Statistici detaliate (puncte, lecții completate, rating-uri)
+
+### 🎯Sprint 5 - Funcționalități Profesor:
+✅ Funcționalități Complete:
+
+✅ **Gestionare Clase**
+   - Creare clase cu cod de acces
+   - Alăturare studenți cu cod (join-class)
+   - Vizualizare detalii clasă cu studenți
+   - Ștergere clasă (admin)
+
+✅ **Sistemul de Feedback**
+   - Profesor trimite feedback personalizat
+   - Tip feedback: lecție, quiz, general
+   - Rating 1-5 stele
+   - Mesaj detaliat
+   - Studentul vede feedback instant în clasă
+
+✅ **Banca de Întrebări**
+   - Profesor crează bănci tematice
+   - Adaugă întrebări reutilizabile
+   - Organizare per dificultate
+
+✅ **UI/Template-uri**
+   - Pagină /class/<id> cu tab-uri (Studenți, Feedback, Setări)
+   - Pagină /join-class pentru studenți
+   - Pagină /professor-dashboard cu gestionare clase

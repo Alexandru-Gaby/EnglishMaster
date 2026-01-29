@@ -123,6 +123,43 @@
             </div>
         </div>
 
+        <!-- Întâlniri Recente -->
+        {% if meetings %}
+        <div class="recent-meetings-section">
+            <div class="section-header">
+                <h2>📅 Întâlniri Recente</h2>
+                <a href="{{ url_for('main.meetings_page') }}" class="link-button">Vezi toate →</a>
+            </div>
+            <div class="meetings-list">
+                {% for meeting in meetings[:5] %}
+                <div class="meeting-card status-{{ meeting.status }}">
+                    <div class="meeting-header">
+                        <div>
+                            {% if current_user.role == 'professor' %}
+                                <h3>{{ meeting.student.get_full_name() }}</h3>
+                                <p class="meeting-email">{{ meeting.student.email }}</p>
+                            {% else %}
+                                <h3>{{ meeting.professor.get_full_name() }}</h3>
+                                <p class="meeting-spec">{{ meeting.professor.specialization }}</p>
+                            {% endif %}
+                        </div>
+                        <span class="status-badge status-{{ meeting.status }}">
+                            {{ meeting.status|upper }}
+                        </span>
+                    </div>
+                    <div class="meeting-details">
+                        <p><strong>📅 Data:</strong> {{ meeting.meeting_date.strftime('%d.%m.%Y %H:%M') }}</p>
+                        <p><strong>⏱️ Durată:</strong> {{ meeting.duration_minutes }} minute</p>
+                        {% if meeting.student_message %}
+                        <p><strong>💬 Mesaj:</strong> {{ meeting.student_message }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Activitate recentă -->
         {% if current_user.role == 'user' %}
         <div class="recent-activity-section">
@@ -232,7 +269,8 @@
 
 .achievements-section,
 .profile-details,
-.recent-activity-section {
+.recent-activity-section,
+.recent-meetings-section {
     background: white;
     padding: 30px;
     border-radius: 12px;
@@ -326,6 +364,104 @@
 .activity-meta {
     color: #666;
     font-size: 12px;
+}
+
+.meetings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.meeting-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-left: 4px solid #2196F3;
+    border-radius: 8px;
+    padding: 15px;
+    transition: all 0.3s ease;
+}
+
+.meeting-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.meeting-card.status-pending {
+    border-left-color: #FF9800;
+    background: #FFF8F0;
+}
+
+.meeting-card.status-confirmed {
+    border-left-color: #4CAF50;
+    background: #F1F8E9;
+}
+
+.meeting-card.status-completed {
+    border-left-color: #2196F3;
+    background: #E3F2FD;
+}
+
+.meeting-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.meeting-header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--text-dark);
+}
+
+.meeting-email,
+.meeting-spec {
+    margin: 5px 0 0 0;
+    font-size: 13px;
+    color: var(--text-light);
+}
+
+.status-badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.status-badge.status-pending {
+    background: #FFE0B2;
+    color: #E65100;
+}
+
+.status-badge.status-confirmed {
+    background: #C8E6C9;
+    color: #1B5E20;
+}
+
+.status-badge.status-completed {
+    background: #BBDEFB;
+    color: #0D47A1;
+}
+
+.meeting-details {
+    font-size: 13px;
+    color: var(--text-dark);
+}
+
+.meeting-details p {
+    margin: 6px 0;
+}
+
+.section-header .link-button {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 13px;
+    float: right;
+    margin-top: 5px;
+}
+
+.section-header .link-button:hover {
+    text-decoration: underline;
 }
 
 @media (max-width: 768px) {

@@ -1,0 +1,721 @@
+{% extends "base.html" %}
+
+{% block title %}{{ cls.name }} - EnglishMaster{% endblock %}
+
+{% block content %}
+<div class="classroom-detail">
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="{{ url_for('main.professor_dashboard') }}">← Panou Profesor</a>
+        </div>
+
+        <div class="classroom-header">
+            <div class="header-info">
+                <h1>📚 {{ cls.name }}</h1>
+                <p class="description">{{ cls.description }}</p>
+                <div class="meta-info">
+                    <span><strong>Cod clasă:</strong> <code>{{ cls.code }}</code></span>
+                    <span><strong>Profesor:</strong> {{ cls.professor.get_full_name() }}</span>
+                    <span><strong>Studenți:</strong> <strong id="studentCount">{{ cls.students|length }}</strong></span>
+                </div>
+            </div>
+
+            {% if is_professor %}
+            <div class="header-actions">
+                <button class="btn btn-primary" onclick="openAddStudentModal()">➕ Adaugă Student Manual</button>
+                <button class="btn btn-secondary" onclick="openAssignMaterialModal()">📖 Atribuie Material</button>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('students')">👥 Studenți ({{ cls.students|length }})</button>
+            <button class="tab-btn" onclick="switchTab('feedback')">💬 Feedback</button>
+            {% if is_professor %}
+            <button class="tab-btn" onclick="switchTab('settings')">⚙️ Setări</button>
+            {% endif %}
+        </div>
+
+        <!-- TAB 1: STUDENȚI -->
+        <div id="students-tab" class="tab-content active">
+            {% if cls.students %}
+            <div class="students-grid">
+                {% for student_rel in cls.students %}
+                <div class="student-card">
+                    <div class="student-header">
+                        <h3>{{ student_rel.student.get_full_name() }}</h3>
+                        <span class="joined-date">📅 {{ student_rel.joined_at.strftime('%d.%m.%Y') }}</span>
+                    </div>
+                    
+                    <div class="student-stats">
+                        <div class="stat">
+                            <span class="label">Puncte:</span>
+                            <span class="value">{{ student_rel.student.points }}</span>
+                        </div>
+                        <div class="stat">
+                            <span class="label">Lecții:</span>
+                            <span class="value">{{ student_rel.student.userprogressions|length }}</span>
+                        </div>
+                    </div>
+
+                    <div class="student-actions">
+                       
+                        <a href="{{ url_for('main.profile') }}?user={{ student_rel.student.id }}" class="btn btn-sm btn-secondary">
+                            👤 Profil
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>Niciun student în clasă încă.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- TAB 2: FEEDBACK -->
+        <div id="feedback-tab" class="tab-content">
+            {% if is_professor %}
+            <div class="feedback-form">
+                <h2>Trimite Feedback Personalizat</h2>
+                <form id="feedbackForm">
+                    <div class="form-group">
+                        <label>Selectează student:</label>
+                        <select id="feedbackStudent" required>
+                            <option value="">-- Alege --</option>
+                            {% for student_rel in cls.students %}
+                            <option value="{{ student_rel.student.id }}">{{ student_rel.student.get_full_name() }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Tip feedback:</label>
+                        <select id="feedbackType" required>
+                            <option value="">-- Alege --</option>
+                            <option value="lesson">📖 Legat de o lecție</option>
+                            <option value="quiz">❓ Legat de un quiz</option>
+                            <option value="general">💬 Feedback general</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="lessonSelectGroup" style="display:none;">
+                        <label>Selectează lecția:</label>
+                        <select id="feedbackLesson">
+                            <option value="">-- Selectează lecție --</option>
+                            {% for lesson in current_user.lessons %}
+                            <option value="{{ lesson.id }}">{{ lesson.title }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Mesaj feedback:</label>
+                        <textarea id="feedbackMessage" required placeholder="Scrie feedback personalizat..." rows="5"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Rating (1-5 stele):</label>
+                        <div class="rating-input">
+                            <input type="range" id="feedbackRating" min="1" max="5" value="3">
+                            <span id="ratingDisplay">⭐⭐⭐</span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-success">📤 Trimite Feedback</button>
+                </form>
+            </div>
+            {% endif %}
+
+            <div class="feedback-history">
+                <h2>📋 Istoric Feedback</h2>
+                <div id="feedbackList">
+                    <p class="loading">Se încarcă...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: SETĂRI (doar profesor) -->
+        {% if is_professor %}
+        <div id="settings-tab" class="tab-content">
+            <div class="settings-section">
+                <h2>⚙️ Setări Clasă</h2>
+                
+                <div class="setting">
+                    <label>Nume clasă:</label>
+                    <input type="text" id="className" value="{{ cls.name }}" readonly>
+                </div>
+
+                <div class="setting">
+                    <label>Descriere:</label>
+                    <textarea id="classDescription" rows="3" readonly>{{ cls.description }}</textarea>
+                </div>
+
+                <div class="setting">
+                    <label>Cod acces (studenți):</label>
+                    <div class="code-display">
+                        <code id="accessCode">{{ cls.code }}</code>
+                        <button class="btn btn-sm btn-secondary" onclick="copyCode('{{ cls.code }}')">📋 Copiază</button>
+                    </div>
+                </div>
+
+                <div class="danger-zone">
+                    <h3>⚠️ Ștergere</h3>
+                    <p>Aceasta va șterge clasa și toate datele asociate!</p>
+                    <!-- <button class="btn btn-danger" onclick="deleteClass({{ cls.id }})">🗑️ Șterge Clasă</button> -->
+                    <button class="btn btn-danger" data-class-id="{{ cls.id }}" onclick="deleteClass(this)">🗑️ Șterge Clasă</button>
+
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal: Feedback Detail -->
+<div id="feedbackDetailModal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Detalii Feedback</h2>
+            <span class="close" onclick="closeFeedbackModal()">&times;</span>
+        </div>
+        <div id="feedbackDetailContent"></div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.classroom-detail {
+    padding: 40px 0;
+    background: var(--bg-light);
+    min-height: calc(100vh - 150px);
+}
+
+.breadcrumb {
+    margin-bottom: 20px;
+}
+
+.breadcrumb a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.classroom-header {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    box-shadow: var(--shadow);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+}
+
+.header-info h1 {
+    margin: 0 0 10px 0;
+    color: var(--text-dark);
+}
+
+.header-info .description {
+    color: var(--text-light);
+    margin-bottom: 15px;
+}
+
+.meta-info {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.meta-info span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.meta-info code {
+    background: var(--bg-light);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    padding: 12px 16px;
+    font-size: 16px;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    color: var(--text-light);
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.tab-btn:hover {
+    color: var(--primary-color);
+}
+
+.tab-btn.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+
+.tab-content {
+    display: none;
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Students Grid */
+.students-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.student-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.student-header h3 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.joined-date {
+    font-size: 12px;
+    opacity: 0.9;
+}
+
+.student-stats {
+    display: flex;
+    gap: 15px;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat .label {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.stat .value {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.student-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-sm {
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+/* Feedback Form */
+.feedback-form {
+    background: var(--bg-light);
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+}
+
+.feedback-form h2 {
+    margin-top: 0;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.form-group input[type="text"],
+.form-group input[type="email"],
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.form-group textarea {
+    resize: vertical;
+}
+
+.rating-input {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.rating-input input[type="range"] {
+    flex: 1;
+    max-width: 200px;
+}
+
+#ratingDisplay {
+    font-size: 20px;
+}
+
+/* Feedback History */
+.feedback-history {
+    margin-top: 30px;
+}
+
+.feedback-history h2 {
+    margin-bottom: 20px;
+}
+
+.feedback-item {
+    background: var(--bg-light);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border-left: 4px solid var(--primary-color);
+}
+
+.feedback-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.feedback-header strong {
+    color: var(--primary-color);
+}
+
+.feedback-header .date {
+    color: var(--text-light);
+    font-size: 13px;
+}
+
+.feedback-message {
+    color: var(--text-dark);
+    line-height: 1.6;
+}
+
+.feedback-rating {
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-light);
+}
+
+.empty-state p {
+    margin: 10px 0;
+}
+
+/* Settings */
+.settings-section {
+    background: var(--bg-light);
+    padding: 25px;
+    border-radius: 12px;
+}
+
+.setting {
+    margin-bottom: 20px;
+}
+
+.setting label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.setting input[type="text"],
+.setting textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+}
+
+.code-display {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.code-display code {
+    background: white;
+    padding: 10px 15px;
+    border-radius: 6px;
+    border: 2px solid var(--primary-color);
+    font-weight: bold;
+    font-size: 16px;
+    color: var(--primary-color);
+    flex: 1;
+}
+
+.danger-zone {
+    background: #fee;
+    border: 2px solid #f88;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 30px;
+}
+
+.danger-zone h3 {
+    margin-top: 0;
+    color: #d00;
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.close {
+    cursor: pointer;
+    font-size: 28px;
+    color: var(--text-light);
+}
+
+.close:hover {
+    color: var(--text-dark);
+}
+
+@media (max-width: 768px) {
+    .classroom-header {
+        flex-direction: column;
+    }
+
+    .header-actions {
+        width: 100%;
+    }
+
+    .header-actions .btn {
+        width: 100%;
+    }
+
+    .students-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .tabs {
+        flex-wrap: wrap;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function sendFeedback(button) {
+    const studentId = button.getAttribute('data-student-id');
+    // Acum poți folosi studentId pentru a trimite feedback
+    console.log(studentId); // sau trimite-l la server
+}
+
+// Tab switching
+function switchTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    
+    document.getElementById(tabName + '-tab').classList.add('active');
+    event.target.classList.add('active');
+}
+
+// Feedback form
+document.getElementById('feedbackType')?.addEventListener('change', function() {
+    const lessonGroup = document.getElementById('lessonSelectGroup');
+    lessonGroup.style.display = this.value === 'lesson' ? 'block' : 'none';
+});
+
+document.getElementById('feedbackRating')?.addEventListener('input', function() {
+    const stars = '⭐'.repeat(this.value);
+    document.getElementById('ratingDisplay').textContent = stars;
+});
+
+document.getElementById('feedbackForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const studentId = document.getElementById('feedbackStudent').value;
+    const feedbackType = document.getElementById('feedbackType').value;
+    const message = document.getElementById('feedbackMessage').value;
+    const rating = document.getElementById('feedbackRating').value;
+    
+    fetch('/api/feedback/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            student_id: studentId,
+            type: feedbackType,
+            message: message,
+            rating: rating
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ Feedback trimis cu succes!');
+            document.getElementById('feedbackForm').reset();
+            loadFeedback();
+        } else {
+            alert('❌ ' + data.error);
+        }
+    });
+});
+
+function loadFeedback() {
+    const classId = window.location.pathname.split('/')[2];
+    console.log('Loading feedback for class:', classId);
+    
+    fetch(`/api/classes/${classId}/feedback`)
+        .then(res => res.json())
+        .then(data => {
+            console.log('Feedback response:', data);
+            
+            if (data.success) {
+                const list = document.getElementById('feedbackList');
+                list.innerHTML = '';
+                
+                if (!data.feedbacks || data.feedbacks.length === 0) {
+                    list.innerHTML = '<p style="text-align: center; color: var(--text-light);">Niciun feedback încă.</p>';
+                    return;
+                }
+                
+                data.feedbacks.forEach(f => {
+                    const item = document.createElement('div');
+                    item.className = 'feedback-item';
+                    const message = f.message || f.content || '(fără conținut)';
+                    const rating = f.rating ? '⭐'.repeat(f.rating) : '⭐⭐⭐';
+                    
+                    item.innerHTML = `
+                        <div class="feedback-header">
+                            <strong>${f.student_name}</strong>
+                            <span class="date">${new Date(f.created_at).toLocaleDateString('ro-RO')}</span>
+                        </div>
+                        <div class="feedback-message">${message}</div>
+                        <div class="feedback-rating">${rating}</div>
+                    `;
+                    list.appendChild(item);
+                });
+            } else {
+                const list = document.getElementById('feedbackList');
+                list.innerHTML = `<p style="text-align: center; color: red;">❌ Eroare: ${data.error}</p>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading feedback:', error);
+            const list = document.getElementById('feedbackList');
+            list.innerHTML = '<p style="text-align: center; color: red;">❌ Eroare la încărcarea feedback-urilor</p>';
+        });
+}
+
+function copyCode(code) {
+    navigator.clipboard.writeText(code).then(() => {
+        alert('📋 Cod copiat în clipboard!');
+    });
+}
+
+function deleteClass(button) {
+    const classId = button.getAttribute('data-class-id');
+    if (confirm('Ești sigur că vrei să ștergi această clasă? Aceasta este o acțiune ireversibilă!')) {
+        fetch(`/api/classes/${classId}`, { method: 'DELETE' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '/professor-dashboard';
+                } else {
+                    alert('❌ ' + data.error);
+                }
+            });
+    }
+}
+
+
+// Modal functions
+function openAddStudentModal() {
+    alert('⚙️ Funcție în development - Adaugă student prin email');
+    // TODO: Implementare formă modală pentru adăugare student
+}
+
+function openAssignMaterialModal() {
+    alert('⚙️ Funcție în development - Atribuie material clasei');
+    // TODO: Implementare formă modală pentru atribuire material
+}
+
+// Load feedback on page load
+document.addEventListener('DOMContentLoaded', loadFeedback);
+</script>
+{% endblock %}

@@ -1,10 +1,12 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
 from flask_login import login_user, logout_user, login_required, current_user
-from app.models import db, User, Meeting, Lesson, Quiz, Question, QuizSubmission, Badge, UserBadge, UserProgress, Reward
+from app.models import db, User, Meeting, Lesson, Quiz, Question, QuizSubmission, Badge, UserBadge, UserProgress, Reward, Class, ClassStudent, Feedback, QuestionBank, BankQuestion
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import func, desc
 import re
 import json
+import random
+import string
 
 main = Blueprint('main', __name__)
 
@@ -50,7 +52,13 @@ def dashboard():
 @login_required
 def profile():
     """Pagina de profil a utilizatorului"""
-    return render_template('profile.html', user=current_user)
+    # Obține întâlnirile utilizatorului
+    if current_user.role == 'professor':
+        meetings = Meeting.query.filter_by(professor_id=current_user.id).order_by(Meeting.meeting_date.desc()).limit(5).all()
+    else:
+        meetings = Meeting.query.filter_by(student_id=current_user.id).order_by(Meeting.meeting_date.desc()).limit(5).all()
+    
+    return render_template('profile.html', user=current_user, meetings=meetings)
 
 @main.route('/professors')
 @login_required
@@ -217,6 +225,72 @@ def rewards_page():
         .order_by(Reward.earned_at.desc()).all()
     
     return render_template('rewards.html', rewards=rewards)
+
+@main.route('/class/<int:class_id>')
+@login_required
+def classroom_detail(class_id):
+    """Pagina detalii clasă"""
+    try:
+        cls = Class.query.get(class_id)
+        if not cls:
+            return "Not Found - Clasă inexistentă!", 404
+        
+        # Verifică permisiuni
+        is_professor = cls.professor_id == current_user.id
+        is_student = any(cs.student_id == current_user.id for cs in cls.students)
+        
+        if not is_professor and not is_student:
+            flash('Nu ai permisiunea să vizualizezi această clasă!', 'error')
+            return redirect(url_for('main.professor_dashboard'))
+        
+        return render_template('classroom_detail.html', cls=cls, is_professor=is_professor)
+    except Exception as e:
+        print(f"Eroare: {str(e)}")
+        return "Not Found", 404
+
+@main.route('/join-class')
+@login_required
+def join_class_page():
+    """Pagina pentru studenți să se alăture unei clase"""
+    if current_user.role != 'user':
+        flash('Această pagină este doar pentru studenți!', 'error')
+        return redirect(url_for('main.dashboard'))
+    return render_template('join_class.html')
+
+@main.route('/my-classes')
+@login_required
+def my_classes():
+    """Pagina cu clasele studenților - acces din navbar"""
+    if current_user.role != 'user':
+        return redirect(url_for('main.dashboard'))
+    
+    # Obține clasele în care studentul e înscris
+    class_ids = [cs.class_id for cs in ClassStudent.query.filter_by(student_id=current_user.id).all()]
+    classes = Class.query.filter(Class.id.in_(class_ids)).order_by(Class.created_at.desc()).all() if class_ids else []
+    
+    return render_template('my_classes.html', classes=classes)
+
+@main.route('/professor-dashboard')
+@login_required
+def professor_dashboard():
+    """Pagina panou profesor (clase, întrebări, feedback)"""
+    if current_user.role != 'professor':
+        return redirect(url_for('main.dashboard'))
+    return render_template('professor_dashboard.html')
+
+
+# Pagina detaliu Bancă Întrebări (HTML)
+@main.route('/question-banks/<int:bank_id>')
+@login_required
+def question_bank_detail(bank_id):
+    """Pagina detaliu pentru o bancă de întrebări (profesor proprietar)"""
+    bank = QuestionBank.query.get_or_404(bank_id)
+    # Permisiune: doar profesorul proprietar
+    if current_user.role != 'professor' or bank.professor_id != current_user.id:
+        return redirect(url_for('main.professor_dashboard'))
+
+    questions = BankQuestion.query.filter_by(bank_id=bank_id).order_by(BankQuestion.created_at.desc()).all()
+    return render_template('question_bank_detail.html', bank=bank, questions=questions)
 
 @main.route('/logout')
 @login_required
@@ -1127,5 +1201,463 @@ def check_and_award_rewards(user):
     
     if new_rewards:
         db.session.commit()
+    
+    return new_rewards
+
+
+# ==================== API ENDPOINTS - SPRINT 5: CLASE ====================
+
+@main.route('/api/classes/create', methods=['POST'])
+@login_required
+def api_create_class():
+    """Profesor creează o clasă nouă (US013)"""
+    try:
+        if current_user.role != 'professor':
+            return jsonify({'success': False, 'error': 'Doar profesorii pot crea clase!'}), 403
+        
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        description = data.get('description', '').strip()
+        
+        if not name:
+            return jsonify({'success': False, 'error': 'Numele clasei este obligatoriu!'}), 400
+        
+        # Generează cod unic pentru clasă
+        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        
+        new_class = Class(
+            professor_id=current_user.id,
+            name=name,
+            description=description,
+            code=code,
+            status='active'
+        )
+        
+        db.session.add(new_class)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Clasă creată cu succes!',
+            'class': new_class.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare la crearea clasei: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/classes/<int:class_id>/add-student', methods=['POST'])
+@login_required
+def api_add_student_to_class(class_id):
+    """Profesor adaugă student la clasă (US014)"""
+    try:
+        cls = Class.query.get(class_id)
+        if not cls:
+            return jsonify({'success': False, 'error': 'Clasă inexistentă!'}), 404
+        
+        if cls.professor_id != current_user.id:
+            return jsonify({'success': False, 'error': 'Nu ai permisiunea!'}), 403
+        
+        data = request.get_json()
+        student_email = data.get('student_email', '').strip().lower()
+        
+        if not student_email:
+            return jsonify({'success': False, 'error': 'Email student obligatoriu!'}), 400
+        
+        student = User.query.filter_by(email=student_email).first()
+        if not student or student.role != 'user':
+            return jsonify({'success': False, 'error': 'Student nu găsit!'}), 404
+        
+        # Verifică dacă e deja în clasă
+        existing = ClassStudent.query.filter_by(class_id=class_id, student_id=student.id).first()
+        if existing:
+            return jsonify({'success': False, 'error': 'Student deja în clasă!'}), 400
+        
+        class_student = ClassStudent(class_id=class_id, student_id=student.id)
+        db.session.add(class_student)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'{student.get_full_name()} adăugat la clasă!',
+            'student': class_student.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare la adăugare student: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/classes/<int:class_id>/join', methods=['POST'])
+@login_required
+def api_join_class(class_id):
+    """Student se alătură unei clase folosind cod (US014)"""
+    try:
+        cls = Class.query.get(class_id)
+        if not cls:
+            return jsonify({'success': False, 'error': 'Clasă inexistentă!'}), 404
+        
+        if current_user.role != 'user':
+            return jsonify({'success': False, 'error': 'Doar studenții pot se alătura claselor!'}), 403
+        
+        data = request.get_json()
+        code = data.get('code', '').strip()
+        
+        if code != cls.code:
+            return jsonify({'success': False, 'error': 'Cod invalid!'}), 400
+        
+        existing = ClassStudent.query.filter_by(class_id=class_id, student_id=current_user.id).first()
+        if existing:
+            return jsonify({'success': False, 'error': 'Ești deja în această clasă!'}), 400
+        
+        class_student = ClassStudent(class_id=class_id, student_id=current_user.id)
+        db.session.add(class_student)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Te-ai alăturat clasei {cls.name}!',
+            'class': cls.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare la aderare clasă: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/classes', methods=['GET'])
+@login_required
+def api_get_classes():
+    """Obține clasele - profesor"""
+    try:
+        # Verifică dacă caută o clasă specific după cod (pentru join)
+        search_code = request.args.get('code', '').strip().upper()
+        
+        if search_code:
+            # Caută clasa după cod (oricine poate căuta)
+            cls = Class.query.filter(Class.code.ilike(search_code)).first()
+            if cls:
+                return jsonify({
+                    'success': True,
+                    'class': cls.to_dict()
+                }), 200
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Nu s-a găsit clasă cu acest cod!'
+                }), 404
+        
+        # Fără parametru search - returnează clasele utilizatorului
+        if current_user.role == 'professor':
+            classes = Class.query.filter_by(professor_id=current_user.id).all()
+        else:
+            # Student - clasele în care e înscris
+            class_ids = [cs.class_id for cs in ClassStudent.query.filter_by(student_id=current_user.id).all()]
+            classes = Class.query.filter(Class.id.in_(class_ids)).all() if class_ids else []
+        
+        return jsonify({
+            'success': True,
+            'classes': [c.to_dict() for c in classes]
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare la obținerea claselor: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/classes/<int:class_id>', methods=['GET'])
+@login_required
+def api_get_class_detail(class_id):
+    """Obține detaliile unei clase cu studenți (US015)"""
+    try:
+        cls = Class.query.get(class_id)
+        if not cls:
+            return jsonify({'success': False, 'error': 'Clasă inexistentă!'}), 404
+        
+        # Verifică permisiuni
+        is_professor = cls.professor_id == current_user.id
+        is_student = any(cs.student_id == current_user.id for cs in cls.students)
+        
+        if not is_professor and not is_student:
+            return jsonify({'success': False, 'error': 'Nu ai permisiunea!'}), 403
+        
+        students = [cs.to_dict() for cs in cls.students]
+        
+        return jsonify({
+            'success': True,
+            'class': cls.to_dict(),
+            'students': students,
+            'is_professor': is_professor
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare la detalii clasă: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+@main.route('/api/classes/<int:class_id>/feedback', methods=['GET'])
+@login_required
+def api_get_class_feedback(class_id):
+    """Obține feedback-uri din clasă"""
+    try:
+        cls = Class.query.get(class_id)
+        if not cls:
+            return jsonify({'success': False, 'error': 'Clasă inexistentă!'}), 404
+        
+        # Verifică permisiuni
+        is_professor = cls.professor_id == current_user.id
+        is_student = any(cs.student_id == current_user.id for cs in cls.students)
+        
+        if not is_professor and not is_student:
+            return jsonify({'success': False, 'error': 'Nu ai permisiunea!'}), 403
+        
+        # Obține studenții din clasă
+        student_ids = [cs.student_id for cs in cls.students]
+        
+        # Feedback-uri trimise de profesor către studenții din această clasă
+        feedbacks = Feedback.query.filter(
+            Feedback.professor_id == cls.professor_id,
+            Feedback.student_id.in_(student_ids)
+        ).order_by(Feedback.created_at.desc()).all()
+        
+        result = []
+        for f in feedbacks:
+            result.append({
+                'id': f.id,
+                'student_name': f.student.get_full_name(),
+                'professor_name': f.professor.get_full_name(),
+                'title': f.title,
+                'content': f.content,
+                'message': f.content,  # Pentru compatibilitate cu frontend-ul vechi
+                'rating': f.rating,
+                'status': f.status,
+                'created_at': f.created_at.isoformat(),
+                'is_read': f.status == 'read'  # status e 'sent' sau 'read'
+            })
+        
+        return jsonify({
+            'success': True,
+            'feedbacks': result
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+
+# ==================== API ENDPOINTS - SPRINT 5: ÎNTREBĂRI ====================
+
+@main.route('/api/question-banks/create', methods=['POST'])
+@login_required
+def api_create_question_bank():
+    """Profesor creează o bancă de întrebări (US013)"""
+    try:
+        if current_user.role != 'professor':
+            return jsonify({'success': False, 'error': 'Doar profesorii pot crea bănci!'}), 403
+        
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        description = data.get('description', '').strip()
+        category = data.get('category', '').strip()
+        
+        if not name:
+            return jsonify({'success': False, 'error': 'Numele băncii este obligatoriu!'}), 400
+        
+        bank = QuestionBank(
+            professor_id=current_user.id,
+            name=name,
+            description=description,
+            category=category
+        )
+        
+        db.session.add(bank)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Bancă de întrebări creată!',
+            'bank': bank.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare la creare bancă: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/question-banks/<int:bank_id>/add-question', methods=['POST'])
+@login_required
+def api_add_question_to_bank(bank_id):
+    """Profesor adaugă întrebare la bancă (US013)"""
+    try:
+        bank = QuestionBank.query.get(bank_id)
+        if not bank:
+            return jsonify({'success': False, 'error': 'Bancă inexistentă!'}), 404
+        
+        if bank.professor_id != current_user.id:
+            return jsonify({'success': False, 'error': 'Nu ai permisiunea!'}), 403
+        
+        data = request.get_json()
+        text = data.get('text', '').strip()
+        question_type = data.get('question_type', 'multiple_choice')
+        difficulty = data.get('difficulty', 1)
+        
+        if not text:
+            return jsonify({'success': False, 'error': 'Text obligatoriu!'}), 400
+        
+        question = BankQuestion(
+            bank_id=bank_id,
+            text=text,
+            question_type=question_type,
+            options=data.get('options'),
+            correct_answer=data.get('correct_answer'),
+            difficulty=difficulty
+        )
+        
+        db.session.add(question)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Întrebare adăugată!',
+            'question': question.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare la adăugare întrebare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/question-banks', methods=['GET'])
+@login_required
+def api_get_question_banks():
+    """Obține întrebări scrise de profesor (US013)"""
+    try:
+        if current_user.role != 'professor':
+            return jsonify({'success': False, 'error': 'Numai profesori!'}), 403
+        
+        banks = QuestionBank.query.filter_by(professor_id=current_user.id).all()
+        
+        return jsonify({
+            'success': True,
+            'banks': [b.to_dict() for b in banks]
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+# ==================== API ENDPOINTS - SPRINT 5: FEEDBACK ====================
+
+@main.route('/api/feedback/send', methods=['POST'])
+@login_required
+def api_send_feedback():
+    """Profesor trimite feedback personalizat (US017)"""
+    try:
+        if current_user.role != 'professor':
+            return jsonify({'success': False, 'error': 'Doar profesorii pot trimite feedback!'}), 403
+        
+        data = request.get_json()
+        student_id = data.get('student_id')
+        # Acceptă atât 'message' cât și 'content' și 'title'
+        message = data.get('message', '').strip()
+        title = data.get('title', message[:50] if message else '').strip()  # Titlu auto din primele 50 caractere
+        content = data.get('content', message).strip()  # Dacă nu e content, folosește message
+        feedback_type = data.get('type', 'general')  # lesson, quiz, general
+        lesson_id = data.get('lesson_id')
+        rating = data.get('rating')
+        
+        if not all([student_id, message or content]):
+            return jsonify({'success': False, 'error': 'Câmpuri obligatorii!'}), 400
+        
+        student = User.query.get(student_id)
+        if not student:
+            return jsonify({'success': False, 'error': 'Student nu găsit!'}), 404
+        
+        # Dacă nu e titlu explicit, crează din mesaj
+        if not title:
+            title = f"Feedback - {feedback_type}"
+        
+        feedback = Feedback(
+            professor_id=current_user.id,
+            student_id=student_id,
+            lesson_id=lesson_id,
+            title=title,
+            content=content or message,
+            rating=int(rating) if rating else None,
+            status='sent'
+        )
+        
+        db.session.add(feedback)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Feedback trimis cu succes!',
+            'feedback': feedback.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare feedback: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+        db.session.rollback()
+        print(f"Eroare feedback: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/feedback', methods=['GET'])
+@login_required
+def api_get_feedback():
+    """Obține feedback-uri - student: primit, profesor: trimis"""
+    try:
+        if current_user.role == 'professor':
+            feedbacks = Feedback.query.filter_by(professor_id=current_user.id)\
+                .order_by(Feedback.created_at.desc()).all()
+        else:
+            feedbacks = Feedback.query.filter_by(student_id=current_user.id)\
+                .order_by(Feedback.created_at.desc()).all()
+        
+        return jsonify({
+            'success': True,
+            'feedbacks': [f.to_dict() for f in feedbacks]
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/feedback/<int:feedback_id>/mark-read', methods=['POST'])
+@login_required
+def api_mark_feedback_read(feedback_id):
+    """Student marchează feedback ca citit (US018)"""
+    try:
+        feedback = Feedback.query.get(feedback_id)
+        if not feedback:
+            return jsonify({'success': False, 'error': 'Feedback nu găsit!'}), 404
+        
+        if feedback.student_id != current_user.id:
+            return jsonify({'success': False, 'error': 'Nu ai permisiunea!'}), 403
+        
+        feedback.mark_as_read()
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Marcat ca citit!',
+            'feedback': feedback.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
     
     return new_rewards

@@ -558,3 +558,214 @@ class Reward(db.Model):
             'expires_at': self.expires_at.isoformat() if self.expires_at else None,
             'is_expired': self.is_expired()
         }
+
+
+# ==================== SPRINT 5: CLASE & FEEDBACK ====================
+
+class Class(db.Model):
+    """Model pentru clase create de profesori"""
+    __tablename__ = 'classes'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Profesor care a creat clasa
+    professor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    # Nume și descriere
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    code = db.Column(db.String(20), unique=True, nullable=False)  # Cod pentru a se alătura clasa
+    
+    # Status
+    status = db.Column(db.Enum('active', 'archived'), default='active')
+    
+    # Dată creării
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relații
+    professor = db.relationship('User', backref='classes_created')
+    students = db.relationship('ClassStudent', backref='class_ref', lazy=True, cascade='all, delete-orphan')
+    
+    def __repr__(self):
+        return f'<Class {self.name}>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'code': self.code,
+            'professor_id': self.professor_id,
+            'professor_name': self.professor.get_full_name(),
+            'student_count': len(self.students),
+            'status': self.status,
+            'created_at': self.created_at.isoformat()
+        }
+
+
+class ClassStudent(db.Model):
+    """Model pentru studenți înscriși în clase"""
+    __tablename__ = 'class_students'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    class_id = db.Column(db.Integer, db.ForeignKey('classes.id'), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    # Dată înscrierii
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Progres în clasă
+    progress_percentage = db.Column(db.Float, default=0.0)
+    
+    # Relații
+    student = db.relationship('User', backref='class_enrollments')
+    
+    __table_args__ = (db.UniqueConstraint('class_id', 'student_id', name='unique_class_student'),)
+    
+    def __repr__(self):
+        return f'<ClassStudent class_id={self.class_id} student_id={self.student_id}>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'class_id': self.class_id,
+            'student_id': self.student_id,
+            'student_name': self.student.get_full_name(),
+            'student_email': self.student.email,
+            'student_points': self.student.points,
+            'progress_percentage': self.progress_percentage,
+            'joined_at': self.joined_at.isoformat()
+        }
+
+
+class Feedback(db.Model):
+    """Model pentru feedback-ul profesorilor către studenți"""
+    __tablename__ = 'feedbacks'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Relaționări
+    professor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    lesson_id = db.Column(db.Integer, db.ForeignKey('lessons.id'), nullable=True)
+    quiz_submission_id = db.Column(db.Integer, db.ForeignKey('quiz_submissions.id'), nullable=True)
+    
+    # Conținut
+    title = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    rating = db.Column(db.Integer, nullable=True)  # 1-5 stars
+    
+    # Status
+    status = db.Column(db.Enum('sent', 'read', 'archived'), default='sent')
+    
+    # Dată
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    read_at = db.Column(db.DateTime, nullable=True)
+    
+    # Relații
+    professor = db.relationship('User', foreign_keys=[professor_id], backref='feedbacks_given')
+    student = db.relationship('User', foreign_keys=[student_id], backref='feedbacks_received')
+    lesson = db.relationship('Lesson', backref='feedbacks')
+    quiz_submission = db.relationship('QuizSubmission', backref='feedback')
+    
+    def __repr__(self):
+        return f'<Feedback from professor {self.professor_id} to student {self.student_id}>'
+    
+    def mark_as_read(self):
+        """Marchează feedback-ul ca citit"""
+        self.status = 'read'
+        self.read_at = datetime.utcnow()
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'professor_id': self.professor_id,
+            'professor_name': self.professor.get_full_name(),
+            'student_id': self.student_id,
+            'student_name': self.student.get_full_name(),
+            'lesson_id': self.lesson_id,
+            'lesson_title': self.lesson.title if self.lesson else None,
+            'title': self.title,
+            'content': self.content,
+            'rating': self.rating,
+            'status': self.status,
+            'created_at': self.created_at.isoformat(),
+            'read_at': self.read_at.isoformat() if self.read_at else None
+        }
+
+
+class QuestionBank(db.Model):
+    """Bankă de întrebări pentru profesori"""
+    __tablename__ = 'question_banks'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Profesor proprietar
+    professor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    # Info
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    category = db.Column(db.String(100), nullable=True)
+    
+    # Dată
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relații
+    professor = db.relationship('User', backref='question_banks')
+    questions = db.relationship('BankQuestion', backref='bank', lazy=True, cascade='all, delete-orphan')
+    
+    def __repr__(self):
+        return f'<QuestionBank {self.name}>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'category': self.category,
+            'professor_id': self.professor_id,
+            'question_count': len(self.questions),
+            'created_at': self.created_at.isoformat()
+        }
+
+
+class BankQuestion(db.Model):
+    """Întrebări în banca de întrebări"""
+    __tablename__ = 'bank_questions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Bank
+    bank_id = db.Column(db.Integer, db.ForeignKey('question_banks.id'), nullable=False)
+    
+    # Conținut
+    text = db.Column(db.Text, nullable=False)
+    question_type = db.Column(db.Enum('multiple_choice', 'essay', 'true_false'), default='multiple_choice')
+    
+    # Pentru multiple choice
+    options = db.Column(db.JSON, nullable=True)  # {"A": "Option A", "B": "Option B", ...}
+    correct_answer = db.Column(db.String(50), nullable=True)
+    
+    # Dificultate
+    difficulty = db.Column(db.Integer, default=1)  # 1-5
+    
+    # Dată
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<BankQuestion {self.id}>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'bank_id': self.bank_id,
+            'text': self.text,
+            'question_type': self.question_type,
+            'options': self.options,
+            'correct_answer': self.correct_answer,
+            'difficulty': self.difficulty,
+            'created_at': self.created_at.isoformat()
+        }
