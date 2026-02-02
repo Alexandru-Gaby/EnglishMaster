@@ -217,17 +217,17 @@ Detalii Lecție:
 ### Funcționalități Implementate
 
 #### US009: Abonament Premium
-✅ Pagina pricing cu planuri disponibile
-✅ Sistem de checkout cu simulare de plată Stripe
+✅ Pagina pricing cu planuri disponibile\
+✅ Sistem de checkout cu simulare de plată\
 ✅ Modele: SubscriptionPlan, Subscription, Payment
 
 #### US019: Remunerare Profesori
-✅ Model ProfessorPayment pentru tracking venituri
-✅ Calcul automat: feedback × €5 + vizualizări lecție × €0.10
-✅ Dashboard /professor/earnings cu statistici venituri
+✅ Model ProfessorPayment pentru tracking venituri \
+✅ Calcul automat: feedback × €5 + vizualizări lecție × €0.10\
+✅ Dashboard /professor/earnings cu statistici venituri\
 ✅ Sistem de cereri retragere cu validare IBAN
 
 #### US022-US028: Funcții Administrative
-✅ Admin Dashboard (/admin-dashboard) cu statistici agregate
-✅ Management utilizatori (/admin/users) - view, suspend, delete
+✅ Admin Dashboard (/admin-dashboard) cu statistici agregate\
+✅ Management utilizatori (/admin/users) - view, suspend, delete\
 ✅ Management planuri (/admin/settings) - scriere, editare planuri
