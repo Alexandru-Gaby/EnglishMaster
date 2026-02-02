@@ -1,0 +1,501 @@
+{% extends "base.html" %}
+
+{% block title %}Utilizatori - Admin{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+    <div class="admin-sidebar">
+        <div class="admin-nav">
+            <h3>Admin Panel</h3>
+            <ul>
+                <li><a href="{{ url_for('main.admin_dashboard') }}">📊 Dashboard</a></li>
+                <li><a href="{{ url_for('main.admin_users') }}" class="active">👥 Utilizatori</a></li>
+                <li><a href="{{ url_for('main.admin_settings') }}">⚙️ Setări</a></li>
+                <li><a href="{{ url_for('main.dashboard') }}">← Înapoi</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="admin-content">
+        <div class="admin-header">
+            <h1>👥 Management Utilizatori</h1>
+            <p>Gestionează conturi și permisiuni</p>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-section">
+            <select id="roleFilter" onchange="filterUsers()">
+                <option value="all">Toți utilizatorii</option>
+                <option value="user">Studenți</option>
+                <option value="professor">Profesori</option>
+                <option value="admin">Admin</option>
+            </select>
+            <input type="text" id="searchInput" placeholder="Caută utilizator..." onkeyup="searchUsers()">
+        </div>
+
+        <!-- Users Table -->
+        <div class="users-table-container">
+            <table class="users-table">
+                <thead>
+                    <tr>
+                        <th>Utilizator</th>
+                        <th>Email</th>
+                        <th>Rol</th>
+                        <th>Puncte</th>
+                        <th>Premium</th>
+                        <th>Status</th>
+                        <th>Înregistrat</th>
+                        <th>Acțiuni</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTableBody">
+                    {% for user in users %}
+                    <tr class="user-row" data-user-id="{{ user.id }}" data-role="{{ user.role }}">
+                        <td>
+                            <div class="user-info">
+                                <div class="user-avatar">{{ user.first_name[0]|upper }}{{ user.last_name[0]|upper }}</div>
+                                <span>{{ user.get_full_name() }}</span>
+                            </div>
+                        </td>
+                        <td>{{ user.email }}</td>
+                        <td>
+                            <span class="role-badge role-{{ user.role }}">{{ user.role|upper }}</span>
+                        </td>
+                        <td>⭐ {{ user.points }}</td>
+                        <td>
+                            {% if user.premium %}
+                                <span class="badge badge-success">✓ Premium</span>
+                            {% else %}
+                                <span class="badge badge-secondary">Free</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.is_available %}
+                                <span class="status-active">🟢 Activ</span>
+                            {% else %}
+                                <span class="status-inactive">🔴 Suspendat</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ user.created_at.strftime('%d.%m.%Y') }}</td>
+                        <td>
+                            <div class="action-buttons">
+                                {% if not user.is_available %}
+                                    <button class="btn-action btn-success btn-activate" data-user-id="{{ user.id }}">
+                                        Activează
+                                    </button>
+                                {% else %}
+                                    <button class="btn-action btn-warning btn-suspend" data-user-id="{{ user.id }}">
+                                        Suspendă
+                                    </button>
+                                {% endif %}
+                                <button class="btn-action btn-danger btn-delete" data-user-id="{{ user.id }}" data-user-name="{{ user.get_full_name() }}">
+                                    Șterge
+                                </button>
+                                <a href="mailto:{{ user.email }}" class="btn-action btn-info">
+                                    Email
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if not users %}
+        <div class="empty-state">
+            <p>Nu sunt utilizatori în sistem.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.admin-page {
+    display: flex;
+    min-height: calc(100vh - 150px);
+}
+
+.admin-sidebar {
+    width: 250px;
+    background: white;
+    padding: 30px 0;
+    box-shadow: var(--shadow);
+}
+
+.admin-nav h3 {
+    padding: 0 20px;
+    margin-bottom: 20px;
+}
+
+.admin-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.admin-nav li a {
+    display: block;
+    padding: 12px 20px;
+    color: var(--text-dark);
+    text-decoration: none;
+    transition: all 0.3s;
+    border-left: 3px solid transparent;
+}
+
+.admin-nav li a:hover,
+.admin-nav li a.active {
+    background: var(--bg-light);
+    border-left-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.admin-content {
+    flex: 1;
+    padding: 40px;
+    background: var(--bg-light);
+}
+
+.admin-header {
+    margin-bottom: 30px;
+}
+
+.admin-header h1 {
+    font-size: 32px;
+    margin-bottom: 5px;
+}
+
+.filters-section {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.filters-section select,
+.filters-section input {
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.filters-section input {
+    flex: 1;
+    max-width: 300px;
+}
+
+.users-table-container {
+    background: white;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    overflow-x: auto;
+}
+
+.users-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.users-table th {
+    background: var(--bg-light);
+    padding: 15px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid #ddd;
+}
+
+.users-table td {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.user-row:hover {
+    background: #f9f9f9;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 12px;
+}
+
+.role-badge {
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.role-user { background: #E3F2FD; color: #1976D2; }
+.role-professor { background: #F3E5F5; color: #7B1FA2; }
+.role-admin { background: #FFEBEE; color: #C62828; }
+
+.badge {
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.badge-success {
+    background: #D4EDDA;
+    color: #155724;
+}
+
+.badge-secondary {
+    background: #E2E3E5;
+    color: #383D41;
+}
+
+.status-active,
+.status-inactive {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-active {
+    color: #4CAF50;
+}
+
+.status-inactive {
+    color: #f44336;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn-action {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.3s;
+}
+
+.btn-success {
+    background: #4CAF50;
+    color: white;
+}
+
+.btn-warning {
+    background: #FF9800;
+    color: white;
+}
+
+.btn-danger {
+    background: #f44336;
+    color: white;
+}
+
+.btn-info {
+    background: #2196F3;
+    color: white;
+}
+
+.btn-action:hover {
+    opacity: 0.8;
+    transform: translateY(-1px);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-light);
+}
+
+@media (max-width: 1024px) {
+    .admin-page {
+        flex-direction: column;
+    }
+
+    .admin-sidebar {
+        width: 100%;
+        padding: 0;
+    }
+
+    .admin-nav {
+        display: flex;
+        gap: 20px;
+        padding: 15px 20px;
+        overflow-x: auto;
+    }
+
+    .admin-nav h3 {
+        padding: 0;
+        margin: 0;
+        white-space: nowrap;
+    }
+
+    .admin-nav ul {
+        display: flex;
+        gap: 0;
+    }
+
+    .admin-nav li a {
+        padding: 8px 12px;
+        border-left: none;
+        border-bottom: 3px solid transparent;
+    }
+
+    .admin-nav li a.active {
+        border-left: none;
+        border-bottom-color: var(--primary-color);
+    }
+}
+
+@media (max-width: 768px) {
+    .admin-content {
+        padding: 20px;
+    }
+
+    .filters-section {
+        flex-direction: column;
+    }
+
+    .users-table {
+        font-size: 12px;
+    }
+
+    .users-table th,
+    .users-table td {
+        padding: 10px;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+    }
+
+    .btn-action {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function suspendUser(userId) {
+    if (!confirm('Sigur vrei să suspendezi acest utilizator?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/admin/users/${userId}/suspend`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('✅ ' + data.message);
+            location.reload();
+        } else {
+            alert('❌ ' + data.error);
+        }
+    } catch (error) {
+        console.error('Eroare:', error);
+        alert('❌ A apărut o eroare');
+    }
+}
+
+async function activateUser(userId) {
+    // TODO: Implement activate endpoint
+    alert('Feature în curând');
+}
+
+async function deleteUser(userId, userName) {
+    if (!confirm(`Sigur vrei să ștergi ${userName}? Aceasta nu poate fi anulată!`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/admin/users/${userId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('✅ ' + data.message);
+            location.reload();
+        } else {
+            alert('❌ ' + data.error);
+        }
+    } catch (error) {
+        console.error('Eroare:', error);
+        alert('❌ A apărut o eroare');
+    }
+}
+
+function filterUsers() {
+    const role = document.getElementById('roleFilter').value;
+    const rows = document.querySelectorAll('.user-row');
+    
+    rows.forEach(row => {
+        if (role === 'all' || row.dataset.role === role) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function searchUsers() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('.user-row');
+    
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(search) ? '' : 'none';
+    });
+}
+
+// Attach event listeners to action buttons
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.btn-activate').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const id = btn.getAttribute('data-user-id');
+            activateUser(id);
+        });
+    });
+    
+    document.querySelectorAll('.btn-suspend').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const id = btn.getAttribute('data-user-id');
+            suspendUser(id);
+        });
+    });
+    
+    document.querySelectorAll('.btn-delete').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const id = btn.getAttribute('data-user-id');
+            const name = btn.getAttribute('data-user-name');
+            deleteUser(id, name);
+        });
+    });
+});
+</script>
+{% endblock %}

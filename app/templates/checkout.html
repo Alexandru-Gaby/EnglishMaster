@@ -1,0 +1,475 @@
+{% extends "base.html" %}
+
+{% block title %}Checkout - {{ plan.name }}{% endblock %}
+
+{% block content %}
+<div class="checkout-page">
+    <div class="container">
+        <div class="checkout-header">
+            <h1>🛒 Finalizare Abonament</h1>
+        </div>
+
+        <div class="checkout-container">
+            <!-- Plan Summary -->
+            <div class="checkout-summary">
+                <div class="plan-summary">
+                    <h2>{{ plan.name }}</h2>
+                    <div class="plan-price">
+                        <span class="currency">€</span><span class="amount">{{ plan.price|int }}</span>
+                        <span class="period">/lună</span>
+                    </div>
+                    <p class="plan-billing">Bilet de plată: {{ plan.billing_period }}</p>
+                    
+                    <div class="plan-features">
+                        <h3>Caracteristici:</h3>
+                        <ul>
+                            <li>✓ Maxim <strong>{{ plan.max_classes }}</strong> clase</li>
+                            <li>✓ <strong>{{ plan.max_questions_per_bank }}</strong> întrebări per bancă</li>
+                            {% if plan.access_analytics %}
+                            <li>✓ <strong>Analitics avansate</strong></li>
+                            {% endif %}
+                            {% if plan.priority_support %}
+                            <li>✓ <strong>Suport prioritar 24/7</strong></li>
+                            {% endif %}
+                            {% if plan.custom_branding %}
+                            <li>✓ <strong>Branding personalizat</strong></li>
+                            {% endif %}
+                        </ul>
+                    </div>
+
+                    {% if plan.description %}
+                    <p class="plan-description">{{ plan.description }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Checkout Form -->
+            <div class="checkout-form">
+                <h2>Detalii Plată</h2>
+
+                <!-- Hidden field to store plan ID -->
+                <input type="hidden" id="planId" value="{{ plan.id }}">
+
+                <form id="checkoutForm" onsubmit="handleCheckout(event)">
+                    <div class="form-section">
+                        <h3>Informații Personale</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Nume</label>
+                                <input type="text" value="{{ current_user.get_full_name() }}" disabled>
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" value="{{ current_user.email }}" disabled>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Payment Method -->
+                    <div class="form-section">
+                        <h3>Metoda de Plată</h3>
+                        <div class="payment-methods">
+                            <label class="payment-method active">
+                                <input type="radio" name="payment_method" value="stripe" checked>
+                                💳 Carte de Credit/Debit (Stripe)
+                            </label>
+                            <label class="payment-method">
+                                <input type="radio" name="payment_method" value="paypal">
+                                🅿️ PayPal
+                            </label>
+                            <label class="payment-method">
+                                <input type="radio" name="payment_method" value="bank_transfer">
+                                🏦 Transfer Bancar
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Card Details (Stripe simulation) -->
+                    <div class="form-section" id="stripeSection">
+                        <h3>Detalii Carte</h3>
+                        <div class="form-group">
+                            <label>Numărul Cărții</label>
+                            <input type="text" placeholder="4242 4242 4242 4242" pattern="[0-9\s]{16,}" id="cardNumber">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Valabilitate</label>
+                                <input type="text" placeholder="MM/YY" id="cardExpiry">
+                            </div>
+                            <div class="form-group">
+                                <label>CVC</label>
+                                <input type="text" placeholder="123" id="cardCVC" pattern="[0-9]{3,4}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Terms -->
+                    <div class="form-section">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="terms" required>
+                            Accept
+                            <a href="#" target="_blank">Termenii și Condițiile</a> și
+                            <a href="#" target="_blank">Politica de Confidențialitate</a>
+                        </label>
+                    </div>
+
+                    <!-- Submit -->
+                    <button type="submit" class="btn-checkout">
+                        Finalizează Plată - € {{ plan.price }}
+                    </button>
+
+                    <p class="security-note">🔒 Pagina este securizată. Datele tale sunt criptate.</p>
+                </form>
+
+                <div class="back-link">
+                    <a href="{{ url_for('main.pricing') }}">← Înapoi la Pricing</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.checkout-page {
+    padding: 40px 0;
+    background: var(--bg-light);
+    min-height: calc(100vh - 150px);
+}
+
+.checkout-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.checkout-header h1 {
+    font-size: 36px;
+    margin-bottom: 10px;
+}
+
+.checkout-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.checkout-summary {
+    display: flex;
+    flex-direction: column;
+}
+
+.plan-summary {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    position: sticky;
+    top: 100px;
+}
+
+.plan-summary h2 {
+    margin-bottom: 15px;
+    font-size: 24px;
+}
+
+.plan-price {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.currency {
+    font-size: 14px;
+    color: var(--text-light);
+}
+
+.amount {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.period {
+    font-size: 14px;
+    color: var(--text-light);
+}
+
+.plan-billing {
+    color: var(--text-light);
+    font-size: 13px;
+    margin-bottom: 20px;
+}
+
+.plan-features {
+    background: var(--bg-light);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.plan-features h3 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+}
+
+.plan-features ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.plan-features li {
+    padding: 5px 0;
+    font-size: 13px;
+}
+
+.plan-description {
+    color: var(--text-light);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.checkout-form {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.checkout-form h2 {
+    margin-bottom: 30px;
+    font-size: 24px;
+}
+
+.form-section {
+    margin-bottom: 30px;
+}
+
+.form-section h3 {
+    margin-bottom: 15px;
+    font-size: 14px;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group label {
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-dark);
+}
+
+.form-group input {
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.form-group input:disabled {
+    background: var(--bg-light);
+    color: var(--text-light);
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.payment-methods {
+    display: grid;
+    gap: 10px;
+}
+
+.payment-method {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.payment-method:hover {
+    border-color: var(--primary-color);
+    background: var(--bg-light);
+}
+
+.payment-method.active,
+.payment-method input:checked + label {
+    border-color: var(--primary-color);
+    background: #E3F2FD;
+}
+
+.payment-method input {
+    margin-right: 12px;
+    cursor: pointer;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.checkbox-label input {
+    margin-right: 8px;
+    cursor: pointer;
+}
+
+.checkbox-label a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.checkbox-label a:hover {
+    text-decoration: underline;
+}
+
+.btn-checkout {
+    width: 100%;
+    padding: 15px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-bottom: 15px;
+}
+
+.btn-checkout:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-checkout:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.security-note {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-light);
+    margin-bottom: 20px;
+}
+
+.back-link {
+    text-align: center;
+}
+
+.back-link a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.back-link a:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+    .checkout-container {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    .plan-summary {
+        position: static;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .checkout-header h1 {
+        font-size: 24px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Handle payment method changes
+document.querySelectorAll('input[name="payment_method"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        const stripeSection = document.getElementById('stripeSection');
+        stripeSection.style.display = this.value === 'stripe' ? 'block' : 'none';
+    });
+});
+
+async function handleCheckout(event) {
+    event.preventDefault();
+    
+    // Validation
+    const terms = document.getElementById('terms').checked;
+    if (!terms) {
+        alert('❌ Trebuie să accepți termenii și condițiile!');
+        return;
+    }
+    
+    const paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
+    
+    // Simulate payment processing
+    const button = event.target.querySelector('button[type="submit"]');
+    button.disabled = true;
+    button.textContent = '⏳ Se procesează...';
+    
+    try {
+        // Simulate payment delay
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Submit subscription
+        const response = await fetch('/api/subscribe', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                plan_id: parseInt(document.getElementById('planId').value),
+                payment_method: paymentMethod
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('✅ ' + data.message);
+            window.location.href = '/dashboard';
+        } else {
+            button.disabled = false;
+            button.textContent = 'Finalizează Plată - € {{ plan.price }}';
+            alert('❌ ' + data.error);
+        }
+    } catch (error) {
+        console.error('Eroare:', error);
+        button.disabled = false;
+        button.textContent = 'Finalizează Plată - € {{ plan.price }}';
+        alert('❌ A apărut o eroare');
+    }
+}
+</script>
+{% endblock %}

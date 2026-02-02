@@ -1,0 +1,487 @@
+{% extends "base.html" %}
+
+{% block title %}Pricing - EnglishMaster{% endblock %}
+
+{% block content %}
+<div class="pricing-page">
+    <div class="container">
+        <div class="pricing-header">
+            <h1>Planuri de Abonament</h1>
+            <p>Alege planul potrivit pentru nevoile tale și deblochează acces la funcții premium</p>
+        </div>
+
+        {% if user_subscription and user_subscription.is_active() %}
+        <div class="alert alert-info">
+            <strong>✅ Ești abonat!</strong> Ai planul <strong>{{ user_subscription.plan.name }}</strong> activ până pe {{ user_subscription.end_date.strftime('%d.%m.%Y') }}
+            <a href="{{ url_for('main.subscription_page') }}" class="btn btn-sm btn-link">Gestionează subscripția</a>
+        </div>
+        {% endif %}
+
+        <div class="pricing-grid">
+            {% for plan in plans %}
+            <div class="pricing-card {% if plan.price > 9.99 %}pricing-card-popular{% endif %}">
+                {% if plan.price > 9.99 %}
+                <div class="plan-badge">POPULAR</div>
+                {% endif %}
+                
+                <div class="plan-header">
+                    <h2>{{ plan.name }}</h2>
+                    <div class="plan-price">
+                        <span class="currency">€</span><span class="amount">{{ plan.price|int }}</span>
+                        <span class="period">/lună</span>
+                    </div>
+                </div>
+
+                <div class="plan-description">
+                    {{ plan.description or '' }}
+                </div>
+
+                <ul class="plan-features">
+                    <li>
+                        <span class="feature-icon">✓</span>
+                        Maxim <strong>{{ plan.max_classes }}</strong> clase
+                    </li>
+                    <li>
+                        <span class="feature-icon">✓</span>
+                        <strong>{{ plan.max_questions_per_bank }}</strong> întrebări per bancă
+                    </li>
+                    {% if plan.access_analytics %}
+                    <li>
+                        <span class="feature-icon">✓</span>
+                        <strong>Analitics avansate</strong> pentru clase
+                    </li>
+                    {% else %}
+                    <li class="unavailable">
+                        <span class="feature-icon">✗</span>
+                        Analitics avansate
+                    </li>
+                    {% endif %}
+                    {% if plan.priority_support %}
+                    <li>
+                        <span class="feature-icon">✓</span>
+                        <strong>Suport prioritar</strong> 24/7
+                    </li>
+                    {% else %}
+                    <li class="unavailable">
+                        <span class="feature-icon">✗</span>
+                        Suport prioritar
+                    </li>
+                    {% endif %}
+                    {% if plan.custom_branding %}
+                    <li>
+                        <span class="feature-icon">✓</span>
+                        <strong>Branding personalizat</strong>
+                    </li>
+                    {% else %}
+                    <li class="unavailable">
+                        <span class="feature-icon">✗</span>
+                        Branding personalizat
+                    </li>
+                    {% endif %}
+                </ul>
+
+                {% if current_user.is_authenticated %}
+                    {% if user_subscription and user_subscription.is_active() and user_subscription.plan_id == plan.id %}
+                        <div class="plan-actions">
+                            <button class="btn btn-plan btn-disabled" disabled>
+                                ✓ Plan Activ
+                            </button>
+                            <button class="btn btn-plan btn-cancel btn-cancel-subscription" data-subscription-id="{{ user_subscription.id }}" style="background: #f44336; margin-top: 10px;">
+                                Anulează abonament
+                            </button>
+                        </div>
+                    {% else %}
+                        <button class="btn btn-plan btn-subscribe" data-plan-id="{{ plan.id }}" data-plan-name="{{ plan.name }}">
+                            Abonează-te acum
+                        </button>
+                    {% endif %}
+                {% else %}
+                    <a href="{{ url_for('main.login_page') }}" class="btn btn-plan">
+                        Conectează-te să te abonezi
+                    </a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- FAQ Section -->
+        <div class="pricing-faq">
+            <h2>Întrebări Frecvente</h2>
+            <div class="faq-grid">
+                <div class="faq-item">
+                    <h3>Pot anula subscripția oricând?</h3>
+                    <p>Da, poți anula subscripția oricând din pagina de gestionare. Nu sunt necesari alte pași.</p>
+                </div>
+                <div class="faq-item">
+                    <h3>Ce se întâmplă după expirare?</h3>
+                    <p>După expirare, vei pierde accesul la funcții premium. Poți reînnoi abonamentul oricând.</p>
+                </div>
+                <div class="faq-item">
+                    <h3>Sunt metode de plată sigure?</h3>
+                    <p>Folosim Stripe pentru procesare sigură. Datele tale sunt criptate și protejate.</p>
+                </div>
+                <div class="faq-item">
+                    <h3>Pot schimba planul?</h3>
+                    <p>Da, poți da upgrade in orice moment. Vor fi calculate pe perioada rămasă.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.pricing-page {
+    padding: 60px 0;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    min-height: calc(100vh - 150px);
+}
+
+.pricing-header {
+    text-align: center;
+    margin-bottom: 60px;
+}
+
+.pricing-header h1 {
+    font-size: 48px;
+    margin-bottom: 15px;
+    color: var(--text-dark);
+}
+
+.pricing-header p {
+    font-size: 18px;
+    color: var(--text-light);
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.alert-info {
+    background: #E3F2FD;
+    border: 1px solid #1976D2;
+    border-radius: 8px;
+    padding: 15px 20px;
+    color: #0D47A1;
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.alert-info .btn-link {
+    margin-left: 15px;
+}
+
+.pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 30px;
+    margin-bottom: 60px;
+}
+
+.pricing-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 40px 30px;
+    position: relative;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.pricing-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.pricing-card-popular {
+    border: 2px solid #667eea;
+    transform: scale(1.05);
+}
+
+.pricing-card-popular:hover {
+    transform: scale(1.05) translateY(-5px);
+}
+
+.plan-badge {
+    position: absolute;
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.plan-header {
+    margin-bottom: 20px;
+}
+
+.plan-header h2 {
+    font-size: 24px;
+    margin-bottom: 10px;
+    color: var(--text-dark);
+}
+
+.plan-price {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+}
+
+.currency {
+    font-size: 14px;
+    color: var(--text-light);
+}
+
+.amount {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.period {
+    font-size: 14px;
+    color: var(--text-light);
+}
+
+.plan-description {
+    color: var(--text-light);
+    font-size: 14px;
+    margin-bottom: 25px;
+    flex-grow: 1;
+}
+
+.plan-features {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 25px 0;
+}
+
+.plan-features li {
+    padding: 10px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 14px;
+}
+
+.plan-features li:last-child {
+    border-bottom: none;
+}
+
+.plan-features li.unavailable {
+    color: #999;
+}
+
+.feature-icon {
+    font-weight: 700;
+    color: #4CAF50;
+    font-size: 16px;
+}
+
+.plan-features li.unavailable .feature-icon {
+    color: #ccc;
+}
+
+.btn-plan {
+    padding: 12px 30px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    width: 100%;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn-plan:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-plan.btn-disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #ccc;
+}
+
+.pricing-faq {
+    background: white;
+    border-radius: 12px;
+    padding: 40px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.pricing-faq h2 {
+    text-align: center;
+    margin-bottom: 40px;
+    font-size: 32px;
+}
+
+.faq-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 30px;
+}
+
+.faq-item h3 {
+    color: var(--primary-color);
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.faq-item p {
+    color: var(--text-light);
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+    .pricing-header h1 {
+        font-size: 32px;
+    }
+    
+    .pricing-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .pricing-card-popular {
+        transform: scale(1);
+    }
+    
+    .pricing-card-popular:hover {
+        transform: translateY(-5px);
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function subscribePlan(planId, planName) {
+    try {
+        console.log('Attempting to subscribe to plan:', planId, planName);
+        
+        const payload = {
+            plan_id: parseInt(planId)
+        };
+        
+        console.log('Payload:', JSON.stringify(payload));
+        
+        const response = await fetch('/api/subscribe', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        console.log('Response:', data);
+        
+        if (data.success) {
+            showNotification('✅ ' + data.message, 'success');
+            setTimeout(() => {
+                window.location.href = '/dashboard';
+            }, 2000);
+        } else {
+            showNotification('❌ ' + data.error, 'error');
+            // If server reports there's already an active subscription,
+            // redirect user to subscription management/dashboard so they can manage it.
+            if (typeof data.error === 'string' && data.error.toLowerCase().includes('ai deja o subscrip')) {
+                setTimeout(() => {
+                    window.location.href = '/subscription';
+                }, 1200);
+            }
+        }
+    } catch (error) {
+        console.error('Eroare:', error);
+        showNotification('❌ A apărut o eroare', 'error');
+    }
+}
+
+async function cancelSubscription(subscriptionId) {
+    if (!confirm('Ești sigur că vrei să anulezi abonamentul? Nu vei mai avea acces la funcții premium.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/cancel-subscription', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('✅ ' + data.message, 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            showNotification('❌ ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Eroare:', error);
+        showNotification('❌ A apărut o eroare', 'error');
+    }
+}
+
+function showNotification(message, type) {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        background: ${type === 'success' ? '#4CAF50' : '#f44336'};
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px;
+        z-index: 1000;
+        animation: slideIn 0.3s ease;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
+
+// Attach event listeners to subscribe buttons
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.btn-subscribe').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const planId = btn.getAttribute('data-plan-id');
+            const planName = btn.getAttribute('data-plan-name');
+            console.log('Button clicked - planId:', planId, 'planName:', planName);
+            // Redirect user to the checkout page so server-side checks (existing subscription)
+            window.location.href = `/checkout/${planId}`;
+        });
+    });
+    
+    // Attach event listeners to cancel subscription buttons
+    document.querySelectorAll('.btn-cancel-subscription').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const subscriptionId = btn.getAttribute('data-subscription-id');
+            cancelSubscription(subscriptionId);
+        });
+    });
+});
+</script>
+{% endblock %}

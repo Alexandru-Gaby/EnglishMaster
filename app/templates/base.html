@@ -20,16 +20,22 @@
             <nav class="nav">
                 {% if current_user.is_authenticated %}
                     <a href="{{ url_for('main.dashboard') }}" class="nav-link">Dashboard</a>
+                    <a href="{{ url_for('main.pricing') }}" class="nav-link">💎 Planuri</a>
                     {% if current_user.role == 'professor' %}
                         <a href="{{ url_for('main.professor_dashboard') }}" class="nav-link">Panou Profesor</a>
+                        <a href="{{ url_for('main.professor_earnings') }}" class="nav-link">💰 Venituri</a>
                     {% else %}
                         <a href="{{ url_for('main.join_class_page') }}" class="nav-link">Alătură-te</a>
                     {% endif %}
                     <a href="{{ url_for('main.leaderboard_page') }}" class="nav-link">Clasament</a>
                     <a href="{{ url_for('main.rewards_page') }}" class="nav-link">Recompense</a>
+                    {% if current_user.role == 'admin' %}
+                        <a href="{{ url_for('main.admin_dashboard') }}" class="nav-link">⚙️ Admin</a>
+                    {% endif %}
                     <a href="{{ url_for('main.profile') }}" class="nav-link">Profil</a>
                     <a href="{{ url_for('main.logout') }}" class="nav-link">Ieșire</a>
                 {% else %}
+                    <a href="{{ url_for('main.pricing') }}" class="nav-link">💎 Planuri</a>
                     <a href="{{ url_for('main.login_page') }}" class="nav-link">Autentificare</a>
                     <a href="{{ url_for('main.register_page') }}" class="nav-link btn-primary">Înregistrare</a>
                 {% endif %}

@@ -18,6 +18,62 @@
             </div>
         </div>
 
+        <!-- Informații Abonament -->
+        {% if subscription and subscription.is_active() %}
+        <div class="subscription-card">
+            <div class="subscription-header">
+                <h3>💳 Abonament Activ</h3>
+            </div>
+            <div class="subscription-details">
+                <div class="detail-row">
+                    <span class="label">Plan:</span>
+                    <span class="value"><strong>{{ subscription.plan.name }}</strong></span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">Preț:</span>
+                    <span class="value">€{{ subscription.plan.price }}/lună</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">Data Început:</span>
+                    <span class="value">{{ subscription.start_date.strftime('%d.%m.%Y') }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">Data Expirare:</span>
+                    <span class="value">{{ subscription.end_date.strftime('%d.%m.%Y') }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">Clase Maxime:</span>
+                    <span class="value">{{ subscription.plan.max_classes }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">Întrebări per Bancă:</span>
+                    <span class="value">{{ subscription.plan.max_questions_per_bank }}</span>
+                </div>
+            </div>
+            <div class="subscription-actions">
+                <a href="{{ url_for('main.subscription_page') }}" class="btn btn-sm btn-primary">
+                    Gestionează Abonament
+                </a>
+                <a href="{{ url_for('main.pricing') }}" class="btn btn-sm btn-secondary">
+                    Vezi Alte Planuri
+                </a>
+            </div>
+        </div>
+        {% elif current_user.role == 'user' %}
+        <div class="subscription-card subscription-inactive">
+            <div class="subscription-header">
+                <h3>💳 Abonament</h3>
+            </div>
+            <div class="subscription-message">
+                <p>Nu ai niciun abonament activ. Ești pe versiunea <strong>gratuită</strong>.</p>
+                <p class="text-small">Prin upgradare, vei obține acces la mai multe clase și funcții premium.</p>
+            </div>
+            <a href="{{ url_for('main.pricing') }}" class="btn btn-primary">
+                Upgrade la Plan Premium
+            </a>
+        </div>
+        {% endif %}
+
         <div class="profile-stats">
             <div class="stat-card">
                 <span class="stat-icon">⭐</span>
@@ -464,6 +520,110 @@
     text-decoration: underline;
 }
 
+/* Subscription Card Styles */
+.subscription-card {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    margin-bottom: 30px;
+    box-shadow: var(--shadow);
+    border-left: 5px solid var(--primary-color);
+}
+
+.subscription-card.subscription-inactive {
+    border-left-color: #f44336;
+}
+
+.subscription-header {
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.subscription-header h3 {
+    margin: 0;
+    color: var(--text-dark);
+    font-size: 18px;
+}
+
+.subscription-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.detail-row .label {
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+.detail-row .value {
+    color: var(--text-dark);
+}
+
+.subscription-actions {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.subscription-actions .btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.3s;
+}
+
+.subscription-actions .btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.subscription-actions .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.subscription-actions .btn-secondary {
+    background: #f0f0f0;
+    color: var(--text-dark);
+}
+
+.subscription-actions .btn-secondary:hover {
+    background: #e0e0e0;
+}
+
+.subscription-message {
+    padding: 20px;
+    background: #fff3cd;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid #ffc107;
+}
+
+.subscription-message p {
+    margin: 8px 0;
+    color: #856404;
+    font-size: 14px;
+}
+
+.subscription-message .text-small {
+    font-size: 12px;
+}
+
 @media (max-width: 768px) {
     .profile-header {
         flex-direction: column;
@@ -473,6 +633,22 @@
     
     .profile-stats {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    .subscription-card {
+        padding: 20px;
+    }
+
+    .subscription-details {
+        grid-template-columns: 1fr;
+    }
+
+    .subscription-actions {
+        flex-direction: column;
+    }
+
+    .subscription-actions .btn {
+        width: 100%;
     }
 }
 </style>

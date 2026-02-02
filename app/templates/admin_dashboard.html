@@ -1,0 +1,496 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - EnglishMaster{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+    <div class="admin-sidebar">
+        <div class="admin-nav">
+            <h3>Admin Panel</h3>
+            <ul>
+                <li><a href="{{ url_for('main.admin_dashboard') }}" class="active">📊 Dashboard</a></li>
+                <li><a href="{{ url_for('main.admin_users') }}">👥 Utilizatori</a></li>
+                <li><a href="{{ url_for('main.admin_settings') }}">⚙️ Setări</a></li>
+                <li><a href="{{ url_for('main.dashboard') }}">← Înapoi</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="admin-content">
+        <div class="admin-header">
+            <h1>📊 Dashboard Administrator</h1>
+            <p>Statistici și management sistem</p>
+        </div>
+
+        <!-- Statistics Grid -->
+        <div class="stats-grid" id="statsContainer">
+            <div class="stat-card">
+                <div class="stat-label">Utilizatori Totali</div>
+                <div class="stat-value" id="totalUsers">-</div>
+                <div class="stat-breakdown">
+                    <span>Studenți: <strong id="totalStudents">-</strong></span>
+                    <span>Profesori: <strong id="totalProfessors">-</strong></span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Premium Activ</div>
+                <div class="stat-value" id="premiumUsers">-</div>
+                <div class="stat-subtext">Abonați activi</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Revenue Total</div>
+                <div class="stat-value">€ <span id="totalRevenue">-</span></div>
+                <div class="stat-subtext" id="transactionCount">- tranzacții</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Lecții Publicate</div>
+                <div class="stat-value" id="publishedLessons">-</div>
+                <div class="stat-breakdown">
+                    <span>Total: <strong id="totalLessons">-</strong></span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Întâlniri</div>
+                <div class="stat-value" id="confirmedMeetings">-</div>
+                <div class="stat-breakdown">
+                    <span>Total: <strong id="totalMeetings">-</strong></span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Badge-uri Acordate</div>
+                <div class="stat-value" id="totalBadges">-</div>
+                <div class="stat-subtext">Realizări</div>
+            </div>
+        </div>
+
+        <!-- Charts Section (placeholder) -->
+        <div class="admin-charts">
+            <div class="chart-card">
+                <h3>📈 Revenue pe Luna</h3>
+                <canvas id="revenueChart"></canvas>
+            </div>
+
+            <div class="chart-card">
+                <h3>👥 Distribuție Utilizatori</h3>
+                <canvas id="userDistributionChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions-admin">
+            <h3>⚡ Acțiuni Rapide</h3>
+            <div class="action-buttons">
+                <a href="{{ url_for('main.admin_users') }}" class="action-btn">
+                    👥 Gestionează Utilizatori
+                </a>
+                <a href="{{ url_for('main.admin_settings') }}" class="action-btn">
+                    ⚙️ Configurare Planuri
+                </a>
+                <button class="action-btn" onclick="generateInitialPlans()">
+                    📦 Creează Planuri Inițiale
+                </button>
+                <button class="action-btn" onclick="resetAllStats()">
+                    🔄 Resetează Statistici
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.admin-page {
+    display: flex;
+    min-height: calc(100vh - 150px);
+    background: var(--bg-light);
+}
+
+.admin-sidebar {
+    width: 250px;
+    background: white;
+    box-shadow: var(--shadow);
+    padding: 30px 0;
+    position: sticky;
+    top: 150px;
+    height: calc(100vh - 150px);
+    overflow-y: auto;
+}
+
+.admin-nav h3 {
+    padding: 0 20px;
+    margin-bottom: 20px;
+    color: var(--text-dark);
+}
+
+.admin-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.admin-nav li a {
+    display: block;
+    padding: 12px 20px;
+    color: var(--text-dark);
+    text-decoration: none;
+    transition: all 0.3s;
+    border-left: 3px solid transparent;
+}
+
+.admin-nav li a:hover {
+    background: var(--bg-light);
+    border-left-color: var(--primary-color);
+}
+
+.admin-nav li a.active {
+    background: var(--bg-light);
+    border-left-color: var(--primary-color);
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.admin-content {
+    flex: 1;
+    padding: 40px;
+}
+
+.admin-header {
+    margin-bottom: 40px;
+}
+
+.admin-header h1 {
+    font-size: 36px;
+    margin-bottom: 10px;
+}
+
+.admin-header p {
+    color: var(--text-light);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.stat-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    border-top: 4px solid var(--primary-color);
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--text-light);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+.stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+.stat-subtext {
+    font-size: 12px;
+    color: var(--text-light);
+}
+
+.stat-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-light);
+}
+
+.admin-charts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.chart-card {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.chart-card h3 {
+    margin-bottom: 20px;
+}
+
+.chart-placeholder {
+    height: 300px;
+    background: var(--bg-light);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-light);
+    border: 2px dashed #ddd;
+}
+
+.quick-actions-admin {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.quick-actions-admin h3 {
+    margin-bottom: 20px;
+    font-size: 18px;
+}
+
+.action-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.action-btn {
+    padding: 15px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.3s;
+    display: inline-block;
+}
+
+.action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+@media (max-width: 1024px) {
+    .admin-page {
+        flex-direction: column;
+    }
+
+    .admin-sidebar {
+        width: 100%;
+        height: auto;
+        position: static;
+        padding: 20px 0;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .admin-nav {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        overflow-x: auto;
+        padding: 0 20px;
+    }
+
+    .admin-nav h3 {
+        padding: 0;
+        margin: 0;
+    }
+
+    .admin-nav ul {
+        display: flex;
+        gap: 0;
+    }
+
+    .admin-nav li a {
+        padding: 8px 12px;
+        border-left: none;
+        border-bottom: 3px solid transparent;
+    }
+
+    .admin-nav li a.active {
+        border-left: none;
+        border-bottom-color: var(--primary-color);
+    }
+}
+
+@media (max-width: 768px) {
+    .admin-content {
+        padding: 20px;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-charts {
+        grid-template-columns: 1fr;
+    }
+
+    .chart-placeholder {
+        height: 250px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let revenueChartInstance = null;
+let userDistributionChartInstance = null;
+
+async function loadAdminStats() {
+    try {
+        const response = await fetch('/api/admin/statistics');
+        const data = await response.json();
+        
+        if (data.success) {
+            const stats = data;
+            document.getElementById('totalUsers').textContent = stats.users.total;
+            document.getElementById('totalStudents').textContent = stats.users.students;
+            document.getElementById('totalProfessors').textContent = stats.users.professors;
+            document.getElementById('premiumUsers').textContent = stats.users.premium;
+            document.getElementById('totalRevenue').textContent = stats.payments.total_revenue.toFixed(2);
+            document.getElementById('transactionCount').textContent = stats.payments.total_transactions + ' tranzacții';
+            document.getElementById('totalLessons').textContent = stats.lessons.total;
+            document.getElementById('publishedLessons').textContent = stats.lessons.published;
+            document.getElementById('totalMeetings').textContent = stats.meetings.total;
+            document.getElementById('confirmedMeetings').textContent = stats.meetings.confirmed;
+            document.getElementById('totalBadges').textContent = stats.badges.total_earned;
+            
+            // Load charts
+            loadRevenueChart(stats);
+            loadUserDistributionChart(stats);
+        }
+    } catch (error) {
+        console.error('Eroare la încărcarea statisticilor:', error);
+    }
+}
+
+function generateInitialPlans() {
+    if (!confirm('Sigur vrei să creezi planurile inițiale? (Basic €4.99, Pro €9.99, Premium €19.99)')) {
+        return;
+    }
+    
+    // TODO: Implementare apel API pentru creare planuri
+    alert('Feature în curând');
+}
+function loadRevenueChart(stats) {
+    const ctx = document.getElementById('revenueChart').getContext('2d');
+    
+    // Mock data - exemplu
+    const monthLabels = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun', 'Iul', 'Aug', 'Sep', 'Oct', 'Noi', 'Dec'];
+    const monthlyRevenue = [120, 150, 200, 180, 220, 280, 350, 310, 270, 290, 320, stats.payments.total_revenue];
+    
+    if (revenueChartInstance) {
+        revenueChartInstance.destroy();
+    }
+    
+    revenueChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: monthLabels,
+            datasets: [{
+                label: 'Revenue (EUR)',
+                data: monthlyRevenue,
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 5,
+                pointBackgroundColor: '#667eea',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointHoverRadius: 7
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Revenue (EUR)'
+                    }
+                }
+            }
+        }
+    });
+}
+
+function loadUserDistributionChart(stats) {
+    const ctx = document.getElementById('userDistributionChart').getContext('2d');
+    
+    const userTypes = ['Studenți', 'Profesori', 'Premium'];
+    const userCounts = [
+        stats.users.students,
+        stats.users.professors,
+        stats.users.premium
+    ];
+    
+    if (userDistributionChartInstance) {
+        userDistributionChartInstance.destroy();
+    }
+    
+    userDistributionChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: userTypes,
+            datasets: [{
+                label: 'Utilizatori',
+                data: userCounts,
+                backgroundColor: [
+                    '#667eea',
+                    '#764ba2',
+                    '#f093fb'
+                ],
+                borderColor: '#fff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+function resetAllStats() {
+    if (!confirm('Sigur vrei să resetezi statisticile? Aceasta nu poate fi anulată!')) {
+        return;
+    }
+    
+    // TODO: Implementare apel API
+    alert('Feature în curând');
+}
+
+// Load stats on page load
+document.addEventListener('DOMContentLoaded', loadAdminStats);
+</script>
+{% endblock %}

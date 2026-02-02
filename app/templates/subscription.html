@@ -1,0 +1,546 @@
+{% extends "base.html" %}
+
+{% block title %}Subscripție - EnglishMaster{% endblock %}
+
+{% block content %}
+<div class="subscription-page">
+    <div class="container">
+        <div class="subscription-header">
+            <h1>💎 Gestiunea Abonamentului</h1>
+            <p>Urmărește și gestionează-ți subscripția</p>
+        </div>
+
+        {% if subscription and subscription.is_active() %}
+        <!-- Active Subscription -->
+        <div class="subscription-status">
+            <div class="status-badge status-active">
+                ✅ Abonament Activ
+            </div>
+
+            <div class="subscription-details">
+                <div class="detail-row">
+                    <span class="label">Plan Curent:</span>
+                    <span class="value">{{ subscription.plan.name }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">Preț Lunar:</span>
+                    <span class="value">€ {{ subscription.plan.price }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">Data Început:</span>
+                    <span class="value">{{ subscription.start_date.strftime('%d.%m.%Y') }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">Expirare:</span>
+                    <span class="value">{{ subscription.end_date.strftime('%d.%m.%Y') }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">Reînnoire:</span>
+                    <span class="value">{{ subscription.renewal_date.strftime('%d.%m.%Y') }}</span>
+                </div>
+            </div>
+
+            <div class="plan-features">
+                <h3>Beneficii Abonament:</h3>
+                <ul>
+                    <li>✓ Maxim <strong>{{ subscription.plan.max_classes }}</strong> clase</li>
+                    <li>✓ <strong>{{ subscription.plan.max_questions_per_bank }}</strong> întrebări per bancă</li>
+                    {% if subscription.plan.access_analytics %}
+                    <li>✓ <strong>Analitics Avansate</strong></li>
+                    {% endif %}
+                    {% if subscription.plan.priority_support %}
+                    <li>✓ <strong>Suport Prioritar 24/7</strong></li>
+                    {% endif %}
+                    {% if subscription.plan.custom_branding %}
+                    <li>✓ <strong>Branding Personalizat</strong></li>
+                    {% endif %}
+                </ul>
+            </div>
+
+            <button class="btn btn-danger" onclick="cancelSubscription()">
+                ❌ Anulează Abonament
+            </button>
+        </div>
+
+        <!-- Payment History -->
+        <div class="payment-history">
+            <h2>Istoricul Plăților</h2>
+            <div id="paymentsContainer" class="payments-list">
+                <p class="loading">Se încarcă...</p>
+            </div>
+        </div>
+
+        {% else %}
+        <!-- No Active Subscription -->
+        <div class="no-subscription">
+            <div class="empty-state">
+                <h2>Nu ai un abonament activ</h2>
+                <p>Alege un plan și beneficiază de funcții premium</p>
+                <a href="{{ url_for('main.pricing') }}" class="btn btn-primary">
+                    Exploreaza Planuri
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Comparison Table -->
+        <div class="comparison-section">
+            <h2>Comparare Planuri</h2>
+            <div class="comparison-table-container">
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th>Caracteristică</th>
+                            <th>Free</th>
+                            {% for plan in plans %}
+                                {% if plan.is_active %}
+                                    <th {% if subscription and subscription.plan.id == plan.id %}class="current-plan"{% endif %}>
+                                        {{ plan.name }}
+                                        {% if subscription and subscription.plan.id == plan.id %}
+                                        <span class="current-badge">Curent</span>
+                                        {% endif %}
+                                    </th>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Preț Lunar</td>
+                            <td>Gratuit</td>
+                            {% for plan in plans %}
+                                {% if plan.is_active %}
+                                    <td>€ {{ plan.price }}</td>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                        <tr>
+                            <td>Max Clase</td>
+                            <td>1</td>
+                            {% for plan in plans %}
+                                {% if plan.is_active %}
+                                    <td>{{ plan.max_classes }}</td>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                        <tr>
+                            <td>Întrebări per Bancă</td>
+                            <td>10</td>
+                            {% for plan in plans %}
+                                {% if plan.is_active %}
+                                    <td>{{ plan.max_questions_per_bank }}</td>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                        <tr>
+                            <td>Analitics Avansate</td>
+                            <td>✗</td>
+                            {% for plan in plans %}
+                                {% if plan.is_active %}
+                                    <td>{% if plan.access_analytics %}✓{% else %}✗{% endif %}</td>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                        <tr>
+                            <td>Suport Prioritar</td>
+                            <td>✗</td>
+                            {% for plan in plans %}
+                                {% if plan.is_active %}
+                                    <td>{% if plan.priority_support %}✓{% else %}✗{% endif %}</td>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                        <tr>
+                            <td>Branding Personalizat</td>
+                            <td>✗</td>
+                            {% for plan in plans %}
+                                {% if plan.is_active %}
+                                    <td>{% if plan.custom_branding %}✓{% else %}✗{% endif %}</td>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- FAQ -->
+        <div class="faq-section">
+            <h2>Întrebări Frecvente</h2>
+            <div class="faq-list">
+                <div class="faq-item">
+                    <h3>Cum pot anula subscripția?</h3>
+                    <p>Poți anula oricând din această pagină. Vei pierde accesul imediat la funcții premium.</p>
+                </div>
+                <div class="faq-item">
+                    <h3>Voi fi refundat dacă anulez?</h3>
+                    <p>Nu se oferă refundări pentru lunile deja plătite, dar vei rămâne premium până la final.</p>
+                </div>
+                <div class="faq-item">
+                    <h3>Pot schimba planul?</h3>
+                    <p>Da, poți upgrade la orice moment. Diferența va fi calculată.</p>
+                </div>
+                <div class="faq-item">
+                    <h3>Ce se întâmplă cu datele mele?</h3>
+                    <p>Datele tale vor rămâne sigure. Vei avea acces read-only după anulare.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.subscription-page {
+    padding: 40px 0;
+    background: var(--bg-light);
+    min-height: calc(100vh - 150px);
+}
+
+.subscription-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.subscription-header h1 {
+    font-size: 40px;
+    margin-bottom: 10px;
+}
+
+.subscription-status {
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    margin-bottom: 40px;
+    border-top: 4px solid #4CAF50;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-weight: 600;
+    margin-bottom: 20px;
+}
+
+.status-badge.status-active {
+    background: #C8E6C9;
+    color: #1B5E20;
+}
+
+.subscription-details {
+    background: var(--bg-light);
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 25px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #ddd;
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.detail-row .label {
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.detail-row .value {
+    color: var(--text-light);
+}
+
+.plan-features {
+    background: var(--bg-light);
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 25px;
+}
+
+.plan-features h3 {
+    margin: 0 0 15px 0;
+    font-size: 14px;
+}
+
+.plan-features ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.plan-features li {
+    padding: 8px 0;
+    font-size: 14px;
+}
+
+.btn {
+    padding: 12px 30px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-danger {
+    background: #f44336;
+    color: white;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.payment-history {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    margin-bottom: 40px;
+}
+
+.payment-history h2 {
+    margin-bottom: 20px;
+}
+
+.payments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.payment-item {
+    background: var(--bg-light);
+    padding: 15px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 4px solid var(--primary-color);
+}
+
+.payment-date {
+    font-weight: 600;
+}
+
+.payment-status {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.payment-status.succeeded {
+    background: #C8E6C9;
+    color: #1B5E20;
+}
+
+.no-subscription {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+}
+
+.empty-state {
+    text-align: center;
+}
+
+.empty-state h2 {
+    font-size: 28px;
+    margin-bottom: 10px;
+}
+
+.empty-state p {
+    color: var(--text-light);
+    margin-bottom: 30px;
+    font-size: 16px;
+}
+
+.comparison-section {
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    margin-bottom: 40px;
+}
+
+.comparison-section h2 {
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.comparison-table-container {
+    overflow-x: auto;
+}
+
+.comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.comparison-table th {
+    background: var(--bg-light);
+    padding: 15px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid #ddd;
+}
+
+.comparison-table th.current-plan {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.current-badge {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    margin-top: 5px;
+    opacity: 0.9;
+}
+
+.comparison-table td {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.comparison-table tbody tr:hover {
+    background: var(--bg-light);
+}
+
+.faq-section {
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.faq-section h2 {
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.faq-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 25px;
+}
+
+.faq-item h3 {
+    color: var(--primary-color);
+    margin-bottom: 10px;
+    font-size: 15px;
+}
+
+.faq-item p {
+    color: var(--text-light);
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0;
+}
+
+@media (max-width: 768px) {
+    .subscription-header h1 {
+        font-size: 28px;
+    }
+
+    .subscription-status {
+        padding: 20px;
+    }
+
+    .comparison-table {
+        font-size: 12px;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+        padding: 10px;
+    }
+
+    .faq-list {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadPayments() {
+    try {
+        const response = await fetch('/api/payments');
+        const data = await response.json();
+        
+        const container = document.getElementById('paymentsContainer');
+        container.innerHTML = '';
+        
+        if (data.success && data.payments.length > 0) {
+            data.payments.forEach(payment => {
+                const item = document.createElement('div');
+                item.className = 'payment-item';
+                const date = new Date(payment.created_at).toLocaleDateString('ro-RO');
+                item.innerHTML = `
+                    <div>
+                        <div class="payment-date">${date}</div>
+                        <small style="color: var(--text-light);">${payment.payment_method.toUpperCase()}</small>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-weight: 600;">€ ${payment.amount.toFixed(2)}</div>
+                        <span class="payment-status ${payment.status}">${payment.status.toUpperCase()}</span>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        } else {
+            container.innerHTML = '<p class="text-muted">Nu sunt plăți încă.</p>';
+        }
+    } catch (error) {
+        console.error('Eroare:', error);
+        document.getElementById('paymentsContainer').innerHTML = '<p class="text-muted">Eroare la încărcarea plăților.</p>';
+    }
+}
+
+async function cancelSubscription() {
+    if (!confirm('Sigur vrei să anulezi subscripția? Vei pierde accesul imediat la funcții premium.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/cancel-subscription', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('✅ Subscripția a fost anulată.');
+            location.reload();
+        } else {
+            alert('❌ ' + data.error);
+        }
+    } catch (error) {
+        console.error('Eroare:', error);
+        alert('❌ A apărut o eroare');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadPayments);
+</script>
+{% endblock %}

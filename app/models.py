@@ -769,3 +769,205 @@ class BankQuestion(db.Model):
             'difficulty': self.difficulty,
             'created_at': self.created_at.isoformat()
         }
+
+
+# ==================== SPRINT 6: PREMIUM & PAYMENTS ====================
+
+class SubscriptionPlan(db.Model):
+    """Planuri de abonament disponibile"""
+    __tablename__ = 'subscription_plans'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    name = db.Column(db.String(100), nullable=False)  # "Basic", "Pro", "Premium"
+    price = db.Column(db.Float, nullable=False)  # Preț lunar in EUR
+    billing_period = db.Column(db.String(20), default='monthly')  # "monthly" sau "annual"
+    
+    # Caracteristici
+    max_classes = db.Column(db.Integer, default=5)
+    max_questions_per_bank = db.Column(db.Integer, default=50)
+    access_analytics = db.Column(db.Boolean, default=False)
+    priority_support = db.Column(db.Boolean, default=False)
+    custom_branding = db.Column(db.Boolean, default=False)
+    
+    description = db.Column(db.Text, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relații
+    subscriptions = db.relationship('Subscription', backref='plan', lazy=True)
+    
+    def __repr__(self):
+        return f'<SubscriptionPlan {self.name}>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'price': self.price,
+            'billing_period': self.billing_period,
+            'max_classes': self.max_classes,
+            'max_questions_per_bank': self.max_questions_per_bank,
+            'access_analytics': self.access_analytics,
+            'priority_support': self.priority_support,
+            'custom_branding': self.custom_branding
+        }
+
+
+class Subscription(db.Model):
+    """Abonamente ale utilizatorilor"""
+    __tablename__ = 'subscriptions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Utilizator
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    # Plan
+    plan_id = db.Column(db.Integer, db.ForeignKey('subscription_plans.id'), nullable=False)
+    
+    # Status
+    status = db.Column(db.Enum('active', 'cancelled', 'expired'), default='active')
+    
+    # Dată
+    start_date = db.Column(db.DateTime, default=datetime.utcnow)
+    end_date = db.Column(db.DateTime, nullable=True)
+    renewal_date = db.Column(db.DateTime, nullable=True)
+    
+    # Stripe payment ID
+    stripe_subscription_id = db.Column(db.String(255), nullable=True)
+    
+    # Relații
+    user = db.relationship('User', backref='subscriptions')
+    payments = db.relationship('Payment', backref='subscription', lazy=True)
+    
+    def __repr__(self):
+        return f'<Subscription {self.user_id} - {self.plan.name}>'
+    
+    def is_active(self):
+        """Verifică dacă abonamentul e activ"""
+        if self.status != 'active':
+            return False
+        if self.end_date and self.end_date <= datetime.utcnow():
+            return False
+        return True
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'plan': self.plan.to_dict(),
+            'status': self.status,
+            'start_date': self.start_date.isoformat(),
+            'end_date': self.end_date.isoformat() if self.end_date else None,
+            'renewal_date': self.renewal_date.isoformat() if self.renewal_date else None
+        }
+
+
+class Payment(db.Model):
+    """Plăți de la utilizatori"""
+    __tablename__ = 'payments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Utilizator și abonament
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    subscription_id = db.Column(db.Integer, db.ForeignKey('subscriptions.id'), nullable=True)
+    
+    # Suma
+    amount = db.Column(db.Float, nullable=False)
+    currency = db.Column(db.String(3), default='EUR')
+    
+    # Status
+    status = db.Column(db.Enum('pending', 'succeeded', 'failed', 'refunded'), default='pending')
+    
+    # Payment gateway
+    payment_method = db.Column(db.String(50), default='stripe')  # stripe, paypal, etc
+    transaction_id = db.Column(db.String(255), nullable=True)  # ID din gateway
+    
+    # Dată
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    processed_at = db.Column(db.DateTime, nullable=True)
+    
+    # Relații
+    user = db.relationship('User', backref='payments')
+    
+    def __repr__(self):
+        return f'<Payment {self.id} - {self.amount} EUR>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'amount': self.amount,
+            'currency': self.currency,
+            'status': self.status,
+            'payment_method': self.payment_method,
+            'created_at': self.created_at.isoformat(),
+            'processed_at': self.processed_at.isoformat() if self.processed_at else None
+        }
+
+
+class ProfessorPayment(db.Model):
+    """Remunerări pentru profesori pe baza feedback-urilor"""
+    __tablename__ = 'professor_payments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Profesor
+    professor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    # Suma
+    amount = db.Column(db.Float, default=0.0)  # EUR
+    earnings_from_feedbacks = db.Column(db.Float, default=0.0)
+    earnings_from_lessons = db.Column(db.Float, default=0.0)
+    
+    # Perioada
+    period_start = db.Column(db.DateTime, nullable=False)
+    period_end = db.Column(db.DateTime, nullable=False)
+    
+    # Status
+    status = db.Column(db.Enum('pending', 'approved', 'paid'), default='pending')
+    paid_at = db.Column(db.DateTime, nullable=True)
+    
+    # Bank details pentru transfer
+    iban = db.Column(db.String(34), nullable=True)
+    
+    # Date
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relații
+    professor = db.relationship('User', backref='professor_payments')
+    
+    def __repr__(self):
+        return f'<ProfessorPayment {self.professor_id} - {self.amount} EUR>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'professor_id': self.professor_id,
+            'amount': self.amount,
+            'earnings_from_feedbacks': self.earnings_from_feedbacks,
+            'earnings_from_lessons': self.earnings_from_lessons,
+            'period_start': self.period_start.isoformat(),
+            'period_end': self.period_end.isoformat(),
+            'status': self.status,
+            'created_at': self.created_at.isoformat()
+        }
+
+
+class AdminSetting(db.Model):
+    """Configurări pentru aplicație"""
+    __tablename__ = 'admin_settings'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    key = db.Column(db.String(100), unique=True, nullable=False)
+    value = db.Column(db.Text, nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<AdminSetting {self.key}>'

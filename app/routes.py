@@ -1,6 +1,10 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session, flash
 from flask_login import login_user, logout_user, login_required, current_user
-from app.models import db, User, Meeting, Lesson, Quiz, Question, QuizSubmission, Badge, UserBadge, UserProgress, Reward, Class, ClassStudent, Feedback, QuestionBank, BankQuestion
+from app.models import (
+    db, User, Meeting, Lesson, Quiz, Question, QuizSubmission, Badge, UserBadge,
+    UserProgress, Reward, Class, ClassStudent, Feedback, QuestionBank, BankQuestion,
+    SubscriptionPlan, Subscription, Payment, ProfessorPayment, AdminSetting
+)
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import func, desc
 import re
@@ -46,7 +50,10 @@ def dashboard():
     else:
         meetings = Meeting.query.filter_by(student_id=current_user.id).order_by(Meeting.meeting_date.desc()).limit(5).all()
     
-    return render_template('dashboard.html', user=current_user, meetings=meetings)
+    # Obține abonamentul activ
+    subscription = Subscription.query.filter_by(user_id=current_user.id, status='active').first()
+    
+    return render_template('dashboard.html', user=current_user, meetings=meetings, subscription=subscription)
 
 @main.route('/profile')
 @login_required
@@ -58,7 +65,10 @@ def profile():
     else:
         meetings = Meeting.query.filter_by(student_id=current_user.id).order_by(Meeting.meeting_date.desc()).limit(5).all()
     
-    return render_template('profile.html', user=current_user, meetings=meetings)
+    # Obține abonamentul activ
+    subscription = Subscription.query.filter_by(user_id=current_user.id, status='active').first()
+    
+    return render_template('profile.html', user=current_user, meetings=meetings, subscription=subscription)
 
 @main.route('/professors')
 @login_required
@@ -1275,6 +1285,34 @@ def api_add_student_to_class(class_id):
         if existing:
             return jsonify({'success': False, 'error': 'Student deja în clasă!'}), 400
         
+        # ===== VALIDARE LIMITA CLASE DUPA PLAN =====
+        if student.premium:
+            # Obține subscripția activă a studentului
+            student_sub = Subscription.query.filter_by(user_id=student.id, status='active').first()
+            if not student_sub or not student_sub.is_active():
+                return jsonify({'success': False, 'error': f'Abonamentul lui {student.get_full_name()} nu este activ!'}), 403
+
+            student_classes = ClassStudent.query.filter_by(student_id=student.id).count()
+            max_allowed = student_sub.plan.max_classes
+
+            if student_classes >= max_allowed:
+                return jsonify({
+                    'success': False,
+                    'error': f'{student.get_full_name()} a atins limita de {max_allowed} clase pentru planul lui.',
+                    'current_classes': student_classes,
+                    'max_classes': max_allowed
+                }), 403
+        else:
+            # Student fără subscription (free tier) - poate 1 clasă
+            student_classes = ClassStudent.query.filter_by(student_id=student.id).count()
+            if student_classes >= 1:
+                return jsonify({
+                    'success': False,
+                    'error': f'{student.get_full_name()} e în versiunea gratuita. Trebuie să cumpere un plan!',
+                    'current_classes': student_classes,
+                    'max_classes': 1
+                }), 403
+        
         class_student = ClassStudent(class_id=class_id, student_id=student.id)
         db.session.add(class_student)
         db.session.commit()
@@ -1312,6 +1350,34 @@ def api_join_class(class_id):
         existing = ClassStudent.query.filter_by(class_id=class_id, student_id=current_user.id).first()
         if existing:
             return jsonify({'success': False, 'error': 'Ești deja în această clasă!'}), 400
+        
+        # ===== VALIDARE LIMITA CLASE DUPA PLAN =====
+        if current_user.premium:
+            # Obține subscripția activă a utilizatorului
+            user_sub = Subscription.query.filter_by(user_id=current_user.id, status='active').first()
+            if not user_sub or not user_sub.is_active():
+                return jsonify({'success': False, 'error': 'Abonamentul tău nu este activ!'}), 403
+
+            student_classes = ClassStudent.query.filter_by(student_id=current_user.id).count()
+            max_allowed = user_sub.plan.max_classes
+
+            if student_classes >= max_allowed:
+                return jsonify({
+                    'success': False,
+                    'error': f'Ai atins limita de {max_allowed} clase pentru planul tău. Upgrade pentru mai multă acces!',
+                    'current_classes': student_classes,
+                    'max_classes': max_allowed
+                }), 403
+        else:
+            # User fără subscription (free tier) - poate 1 clasă
+            student_classes = ClassStudent.query.filter_by(student_id=current_user.id).count()
+            if student_classes >= 1:
+                return jsonify({
+                    'success': False,
+                    'error': 'Ești în versiunea gratuita. Cumpără un plan pentru a te alătura mai multor clase!',
+                    'current_classes': student_classes,
+                    'max_classes': 1
+                }), 403
         
         class_student = ClassStudent(class_id=class_id, student_id=current_user.id)
         db.session.add(class_student)
@@ -1659,5 +1725,597 @@ def api_mark_feedback_read(feedback_id):
         db.session.rollback()
         print(f"Eroare: {str(e)}")
         return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+# ==================== SPRINT 6: PREMIUM & PAYMENTS ====================
+# ==================== RUTE HTML - PRICING & SUBSCRIPTION ====================
+
+@main.route('/pricing')
+def pricing():
+    """Pagina publică cu planuri de abonament"""
+    plans = SubscriptionPlan.query.filter_by(is_active=True).order_by(SubscriptionPlan.price).all()
+    user_subscription = None
     
-    return new_rewards
+    if current_user.is_authenticated:
+        user_subscription = Subscription.query.filter_by(user_id=current_user.id, status='active').first()
+    
+    return render_template('pricing.html', plans=plans, user_subscription=user_subscription)
+
+
+@main.route('/checkout/<int:plan_id>')
+@login_required
+def checkout(plan_id):
+    """Pagina de checkout pentru un plan"""
+    plan = SubscriptionPlan.query.get_or_404(plan_id)
+    
+    # Verifică dacă utilizatorul are deja o subscripție activă
+    existing_sub = Subscription.query.filter_by(
+        user_id=current_user.id, 
+        status='active'
+    ).first()
+    
+    if existing_sub:
+        flash('Ai deja o subscripție activă!', 'info')
+        return redirect(url_for('main.dashboard'))
+    
+    return render_template('checkout.html', plan=plan)
+
+
+@main.route('/subscription')
+@login_required
+def subscription_page():
+    """Pagina de gestionare subscripție utilizator"""
+    subscription = Subscription.query.filter_by(user_id=current_user.id, status='active').first()
+    return render_template('subscription.html', subscription=subscription)
+
+
+@main.route('/professor/earnings')
+@login_required
+def professor_earnings():
+    """Pagina cu earnings pentru profesor"""
+    if current_user.role != 'professor':
+        flash('Această pagină este doar pentru profesori!', 'error')
+        return redirect(url_for('main.dashboard'))
+    
+    # Earnings din feedback-uri
+    feedbacks = Feedback.query.filter_by(professor_id=current_user.id).all()
+    earnings_from_feedbacks = len(feedbacks) * 5  # €5 per feedback
+    
+    # Earnings din lecții (views * 0.1)
+    lessons = Lesson.query.filter_by(professor_id=current_user.id).all()
+    earnings_from_lessons = sum(l.views * 0.1 for l in lessons)
+    
+    # Payment requests
+    payments = ProfessorPayment.query.filter_by(professor_id=current_user.id)\
+        .order_by(ProfessorPayment.created_at.desc()).all()
+    
+    return render_template('professor_earnings.html', 
+                         earnings_feedbacks=earnings_from_feedbacks,
+                         earnings_lessons=earnings_from_lessons,
+                         total_earnings=earnings_from_feedbacks + earnings_from_lessons,
+                         payments=payments)
+
+
+@main.route('/admin-dashboard')
+@login_required
+def admin_dashboard():
+    """Dashboard administrator"""
+    if current_user.role != 'admin':
+        flash('Acces refuzat!', 'error')
+        return redirect(url_for('main.dashboard'))
+    
+    return render_template('admin_dashboard.html')
+
+
+@main.route('/admin/users')
+@login_required
+def admin_users():
+    """Management utilizatori - admin only"""
+    if current_user.role != 'admin':
+        flash('Acces refuzat!', 'error')
+        return redirect(url_for('main.dashboard'))
+    
+    users = User.query.all()
+    return render_template('admin_users.html', users=users)
+
+
+@main.route('/admin/settings')
+@login_required
+def admin_settings():
+    """Management configurări - admin only"""
+    if current_user.role != 'admin':
+        flash('Acces refuzat!', 'error')
+        return redirect(url_for('main.dashboard'))
+    
+    plans = SubscriptionPlan.query.all()
+    settings = AdminSetting.query.all()
+    
+    return render_template('admin_settings.html', plans=plans, settings=settings)
+
+
+# ==================== API ENDPOINTS - SUBSCRIPTION & PAYMENTS ====================
+
+@main.route('/api/subscription-plans', methods=['GET'])
+def api_get_subscription_plans():
+    """Obține toate planurile de abonament active"""
+    try:
+        plans = SubscriptionPlan.query.filter_by(is_active=True)\
+            .order_by(SubscriptionPlan.price).all()
+        
+        return jsonify({
+            'success': True,
+            'plans': [p.to_dict() for p in plans]
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/subscribe', methods=['POST'])
+@login_required
+def api_subscribe():
+    """Utilizatorul se abonează la un plan"""
+    try:
+        data = request.get_json()
+        plan_id = data.get('plan_id')
+        
+        # Validare plan_id
+        if not plan_id:
+            return jsonify({'success': False, 'error': 'Plan ID este obligatoriu!'}), 400
+        
+        # Convertire la int dacă e string
+        try:
+            plan_id = int(plan_id)
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Plan ID invalid!'}), 400
+        
+        plan = SubscriptionPlan.query.get(plan_id)
+        if not plan:
+            return jsonify({'success': False, 'error': 'Plan inexistent!'}), 404
+        
+        # Verifică dacă utilizatorul are deja o subscripție activă
+        existing = Subscription.query.filter_by(
+            user_id=current_user.id,
+            status='active'
+        ).first()
+        
+        if existing:
+            return jsonify({'success': False, 'error': 'Ai deja o subscripție activă!'}), 400
+        
+        # Creează o subscripție nouă (simuleaza plată)
+        subscription = Subscription(
+            user_id=current_user.id,
+            plan_id=plan_id,
+            status='active',
+            start_date=datetime.utcnow()
+        )
+        
+        # Calculează end_date
+        if plan.billing_period == 'monthly':
+            subscription.end_date = datetime.utcnow() + timedelta(days=30)
+            subscription.renewal_date = datetime.utcnow() + timedelta(days=30)
+        else:  # annual
+            subscription.end_date = datetime.utcnow() + timedelta(days=365)
+            subscription.renewal_date = datetime.utcnow() + timedelta(days=365)
+        
+        # Adauga subscription in sesiune (fără commit)
+        db.session.add(subscription)
+        db.session.flush()  # Generează ID-ul fără commit
+        
+        # Creează plată cu subscription_id corect
+        payment = Payment(
+            user_id=current_user.id,
+            subscription_id=subscription.id,  # Acum subscription.id e disponibil
+            amount=plan.price,
+            currency='EUR',
+            status='succeeded',  # Simuleaza plată reușită
+            payment_method='stripe',
+            transaction_id=f"stripe_{current_user.id}_{int(datetime.utcnow().timestamp())}",
+            processed_at=datetime.utcnow()
+        )
+        
+        # Update user premium status
+        current_user.premium = True
+        
+        db.session.add(payment)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Felicitări! Te-ai abonat la planul {plan.name}!',
+            'subscription': subscription.to_dict(),
+            'payment': payment.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare subscripție: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/subscription', methods=['GET'])
+@login_required
+def api_get_user_subscription():
+    """Obține subscripția curently a utilizatorului"""
+    try:
+        subscription = Subscription.query.filter_by(user_id=current_user.id, status='active').first()
+        
+        if not subscription:
+            return jsonify({
+                'success': True,
+                'subscription': None
+            }), 200
+        
+        return jsonify({
+            'success': True,
+            'subscription': subscription.to_dict(),
+            'is_active': subscription.is_active()
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/payments', methods=['GET'])
+@login_required
+def api_get_user_payments():
+    """Obține plăți utilizatorului"""
+    try:
+        payments = Payment.query.filter_by(user_id=current_user.id)\
+            .order_by(Payment.created_at.desc()).all()
+        
+        return jsonify({
+            'success': True,
+            'payments': [p.to_dict() for p in payments],
+            'total': len(payments)
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/cancel-subscription', methods=['POST'])
+@login_required
+def api_cancel_subscription():
+    """Anulează subscripție"""
+    try:
+        subscription = Subscription.query.filter_by(user_id=current_user.id, status='active').first()
+        
+        if not subscription:
+            return jsonify({'success': False, 'error': 'Nu ai subscripție activă!'}), 404
+        
+        subscription.status = 'cancelled'
+        current_user.premium = False
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Subscripție anulată.'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+# ==================== API ENDPOINTS - PROFESSOR PAYMENTS ====================
+
+@main.route('/api/professor-payments/calculate', methods=['POST'])
+@login_required
+def api_calculate_professor_payment():
+    """Calculează earnings pentru profesor pentru o perioadă"""
+    try:
+        if current_user.role != 'professor':
+            return jsonify({'success': False, 'error': 'Doar profesori!'}), 403
+        
+        data = request.get_json()
+        period_start = datetime.fromisoformat(data.get('period_start'))
+        period_end = datetime.fromisoformat(data.get('period_end'))
+        
+        # Feedback-uri
+        feedbacks = Feedback.query.filter(
+            Feedback.professor_id == current_user.id,
+            Feedback.created_at >= period_start,
+            Feedback.created_at <= period_end
+        ).all()
+        
+        earnings_feedbacks = len(feedbacks) * 5  # €5 per feedback
+        
+        # Views din lecții
+        lessons = Lesson.query.filter_by(professor_id=current_user.id).all()
+        views_count = 0
+        for lesson in lessons:
+            # Estimează views în perioada specificată
+            views_count += lesson.views
+        
+        earnings_lessons = views_count * 0.1  # €0.10 per view
+        
+        total_amount = earnings_feedbacks + earnings_lessons
+        
+        return jsonify({
+            'success': True,
+            'period_start': period_start.isoformat(),
+            'period_end': period_end.isoformat(),
+            'earnings_from_feedbacks': earnings_feedbacks,
+            'earnings_from_lessons': earnings_lessons,
+            'total_amount': round(total_amount, 2),
+            'feedback_count': len(feedbacks),
+            'views_count': views_count
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/professor-payments/request-withdrawal', methods=['POST'])
+@login_required
+def api_request_professor_withdrawal():
+    """Profesor solicită retragere de earnings"""
+    try:
+        if current_user.role != 'professor':
+            return jsonify({'success': False, 'error': 'Doar profesori!'}), 403
+        
+        data = request.get_json()
+        iban = data.get('iban', '').strip()
+        
+        # Calculează earnings curente
+        feedbacks = Feedback.query.filter_by(professor_id=current_user.id).all()
+        earnings_feedbacks = len(feedbacks) * 5
+        
+        lessons = Lesson.query.filter_by(professor_id=current_user.id).all()
+        earnings_lessons = sum(l.views * 0.1 for l in lessons)
+        
+        total_amount = earnings_feedbacks + earnings_lessons
+        
+        if total_amount < 10:  # Minim €10
+            return jsonify({'success': False, 'error': 'Minim €10 pentru retragere!'}), 400
+        
+        payment = ProfessorPayment(
+            professor_id=current_user.id,
+            amount=round(total_amount, 2),
+            earnings_from_feedbacks=earnings_feedbacks,
+            earnings_from_lessons=earnings_lessons,
+            period_start=datetime.utcnow() - timedelta(days=30),
+            period_end=datetime.utcnow(),
+            iban=iban,
+            status='pending'
+        )
+        
+        db.session.add(payment)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cerere de retragere trimisă!',
+            'payment': payment.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+# ==================== API ENDPOINTS - ADMIN ====================
+
+@main.route('/api/admin/statistics', methods=['GET'])
+@login_required
+def api_admin_statistics():
+    """Admin: Statistici generale"""
+    try:
+        if current_user.role != 'admin':
+            return jsonify({'success': False, 'error': 'Doar admin!'}), 403
+        
+        # Utilizatori
+        total_users = User.query.count()
+        total_students = User.query.filter_by(role='user').count()
+        total_professors = User.query.filter_by(role='professor').count()
+        
+        # Premium
+        premium_users = User.query.filter_by(premium=True).count()
+        
+        # Plăți
+        total_revenue = db.session.query(func.sum(Payment.amount))\
+            .filter(Payment.status == 'succeeded').scalar() or 0
+        
+        payments_count = Payment.query.filter_by(status='succeeded').count()
+        
+        # Lecții
+        total_lessons = Lesson.query.count()
+        published_lessons = Lesson.query.filter_by(status='published').count()
+        
+        # Meetings
+        total_meetings = Meeting.query.count()
+        confirmed_meetings = Meeting.query.filter_by(status='confirmed').count()
+        
+        # Badges
+        total_badges_earned = UserBadge.query.count()
+        
+        return jsonify({
+            'success': True,
+            'users': {
+                'total': total_users,
+                'students': total_students,
+                'professors': total_professors,
+                'premium': premium_users
+            },
+            'payments': {
+                'total_revenue': round(total_revenue, 2),
+                'total_transactions': payments_count
+            },
+            'lessons': {
+                'total': total_lessons,
+                'published': published_lessons
+            },
+            'meetings': {
+                'total': total_meetings,
+                'confirmed': confirmed_meetings
+            },
+            'badges': {
+                'total_earned': total_badges_earned
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/admin/users', methods=['GET'])
+@login_required
+def api_admin_get_users():
+    """Admin: Obține toți utilizatorii"""
+    try:
+        if current_user.role != 'admin':
+            return jsonify({'success': False, 'error': 'Doar admin!'}), 403
+        
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        role_filter = request.args.get('role', 'all')
+        
+        query = User.query
+        if role_filter != 'all':
+            query = query.filter_by(role=role_filter)
+        
+        total = query.count()
+        users = query.limit(per_page).offset((page - 1) * per_page).all()
+        
+        return jsonify({
+            'success': True,
+            'users': [u.to_dict() for u in users],
+            'total': total,
+            'page': page,
+            'per_page': per_page
+        }), 200
+        
+    except Exception as e:
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/admin/users/<int:user_id>/suspend', methods=['POST'])
+@login_required
+def api_admin_suspend_user(user_id):
+    """Admin: Suspendă utilizator"""
+    try:
+        if current_user.role != 'admin':
+            return jsonify({'success': False, 'error': 'Doar admin!'}), 403
+        
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'Utilizator nu găsit!'}), 404
+        
+        user.is_available = False
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'{user.get_full_name()} a fost suspendat.'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+@login_required
+def api_admin_delete_user(user_id):
+    """Admin: Șterge utilizator"""
+    try:
+        if current_user.role != 'admin':
+            return jsonify({'success': False, 'error': 'Doar admin!'}), 403
+        
+        if user_id == current_user.id:
+            return jsonify({'success': False, 'error': 'Nu poți șterge propriul cont!'}), 400
+        
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'Utilizator nu găsit!'}), 404
+        
+        # Șterge relațiile
+        db.session.delete(user)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'{user.get_full_name()} a fost șters.'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/admin/subscription-plans', methods=['POST'])
+@login_required
+def api_admin_create_plan():
+    """Admin: Crează/modifică plan"""
+    try:
+        if current_user.role != 'admin':
+            return jsonify({'success': False, 'error': 'Doar admin!'}), 403
+        
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        price = data.get('price', 0)
+        
+        if not name or not price:
+            return jsonify({'success': False, 'error': 'Câmpuri obligatorii!'}), 400
+        
+        plan = SubscriptionPlan(
+            name=name,
+            price=price,
+            billing_period=data.get('billing_period', 'monthly'),
+            max_classes=data.get('max_classes', 5),
+            access_analytics=data.get('access_analytics', False),
+            priority_support=data.get('priority_support', False),
+            description=data.get('description', '')
+        )
+        
+        db.session.add(plan)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Plan creat!',
+            'plan': plan.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
+
+
+@main.route('/api/admin/professor-payments/<int:payment_id>/approve', methods=['POST'])
+@login_required
+def api_admin_approve_payment(payment_id):
+    """Admin: Aprobă plată profesor"""
+    try:
+        if current_user.role != 'admin':
+            return jsonify({'success': False, 'error': 'Doar admin!'}), 403
+        
+        payment = ProfessorPayment.query.get(payment_id)
+        if not payment:
+            return jsonify({'success': False, 'error': 'Plată nu găsită!'}), 404
+        
+        payment.status = 'approved'
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Plată aprobată!',
+            'payment': payment.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Eroare: {str(e)}")
+        return jsonify({'success': False, 'error': 'A apărut o eroare.'}), 500
